@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R.A AgroTec · Diagnóstico socioambiental do imóvel rural</title>
+<meta name="description" content="Diagnóstico socioambiental do imóvel rural a partir do CAR: desmatamento PRODES e MapBiomas, embargos, terras indígenas, UCs e imagens de satélite desde 1985, com relatório em PDF.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="R.A AgroTec · Soluções Rurais">
+<meta property="og:title" content="R.A AgroTec · Diagnóstico socioambiental do imóvel rural">
+<meta property="og:description" content="Cole o número do CAR e veja desmatamento, embargos, áreas protegidas e imagens de satélite do imóvel — relatório em PDF em minutos.">
+<meta property="og:url" content="https://raagrotec.github.io/ra-agrotec/">
+<meta property="og:image" content="https://raagrotec.github.io/ra-agrotec/og.jpg">
+<meta property="og:image:secure_url" content="https://raagrotec.github.io/ra-agrotec/og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Logo R.A AgroTec e imagem de satélite de lavouras">
+<meta property="og:locale" content="pt_BR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#16171a">
+<link rel="icon" type="image/png" href="icone.png">
+<link rel="apple-touch-icon" href="icone.png">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* R.A AgroTec — ferramenta de diagnóstico: capa com imagem de satélite real (Sentinel-2, pivôs em Cristalina-GO),
+   painéis brancos limpos, preto da marca + ocre da logo como destaque; Manrope nos títulos, Inter no texto. */
+:root{--bg:#f4f2ed;--card:#fff;--ink:#16171a;--mut:#676359;--line:#e4dfd4;--g:#16171a;--oc:#b7854f;--oc2:#8a5f2e;--ocl:#f5ecdf;--red:#c0392b;--yel:#f2c200;--ok:#2e7d4f}
+*{box-sizing:border-box;min-width:0}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 Inter,system-ui,sans-serif;overflow-x:clip;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:Manrope,Inter,sans-serif;letter-spacing:-.02em;margin:0}
+a{color:inherit}
+/* topo */
+.topbar{position:sticky;top:0;z-index:1000;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.topbar .in{max-width:1320px;margin:0 auto;padding:8px max(3vw,14px);display:flex;align-items:center;gap:12px}
+.topbar img{height:46px;width:auto}
+.brand{font:800 18px/1.05 Manrope;letter-spacing:-.02em}
+.brand small{display:block;font:600 11px Inter;letter-spacing:.08em;color:var(--oc2);margin-top:2px}
+.topbar nav{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}
+.topbar nav a{text-decoration:none;font:600 14px Inter;color:var(--mut);padding:8px 12px;border-radius:8px}
+.topbar nav a:hover{background:var(--ocl);color:var(--ink)}
+@media(max-width:820px){.topbar nav{display:none}}
+/* capa */
+.hero{position:relative;color:#fff;background:#2a2118 url(capa.jpg) center/cover no-repeat;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,rgba(14,13,10,.86) 0%,rgba(14,13,10,.62) 48%,rgba(14,13,10,.25) 100%)}
+.hero .in{position:relative;max-width:1320px;margin:0 auto;padding:clamp(48px,8vw,104px) max(3vw,14px) clamp(40px,6vw,72px)}
+.hero h1{font-size:clamp(32px,5vw,54px);line-height:1.04;max-width:720px;text-wrap:balance}
+.hero h1 em{font-style:normal;color:#e7b877}
+.hero p.lead{font-size:clamp(16px,1.6vw,19px);line-height:1.5;max-width:620px;color:#ece6dc;margin:16px 0 26px}
+.search{display:flex;gap:8px;max-width:720px;background:#fff;padding:8px;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.search input{border:0!important;font:600 17px Inter!important;letter-spacing:.01em;min-height:52px!important;background:transparent!important}
+.search input:focus-visible{outline:none}
+.search button{min-height:52px;padding:0 26px;white-space:nowrap;flex:none;font-size:16px;background:var(--oc);color:#fff}
+.search button:hover{background:var(--oc2)}
+.hint{margin-top:12px;font-size:14px;color:#ddd5c8}
+.hint button{background:none;border:0;color:#f0c88f;font:600 14px Inter;padding:0;min-height:0;text-decoration:underline;cursor:pointer}
+.hero .status{color:#f4e9d7;font-size:14px;margin-top:10px;min-height:22px}
+.hero .status.err{color:#ffb4a8}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:28px;max-width:760px}
+.chips span{font:600 13px Inter;padding:6px 12px;border-radius:99px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(4px)}
+.upl{display:none;margin-top:14px;max-width:720px;background:rgba(255,255,255,.96);color:var(--ink);border-radius:12px;padding:14px}
+.upl.on{display:block}
+.credit{position:absolute;right:12px;bottom:8px;font-size:11px;color:rgba(255,255,255,.7)}
+/* conteúdo */
+main{max-width:1320px;margin:0 auto;padding:28px max(3vw,12px) 40px;display:grid;gap:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:clamp(16px,2.2vw,26px);box-shadow:0 1px 2px rgba(22,23,26,.04)}
+.sh{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}
+.sh .n{flex:none;width:34px;height:34px;border-radius:10px;background:var(--ink);color:#fff;font:800 15px/34px Manrope;text-align:center}
+.sh h2{font-size:clamp(19px,2vw,23px);line-height:1.2}
+.sh p{margin:4px 0 0;color:var(--mut);font-size:14px;max-width:760px}
+.top{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:22px}
+@media(max-width:900px){.top{grid-template-columns:minmax(0,1fr)}}
+h3{font-size:15px;margin:18px 0 6px}
+label{display:block;font-size:13px;font-weight:500;color:var(--mut);margin:10px 0 4px}
+input[type=text],input[type=number],select{width:100%;font:16px Inter;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);min-height:44px}
+input[type=text]:focus,input[type=number]:focus,select:focus{border-color:var(--oc)}
+input[type=file]{width:100%;font-size:14px;padding:9px;border:1px dashed #c9c2b2;border-radius:10px;background:#faf8f3}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:600 15px Inter;border:0;border-radius:10px;padding:10px 16px;min-height:44px;cursor:pointer;background:var(--g);color:#fff;transition:background .15s,transform .1s}
+button:hover{background:#2c2d31}button:active{transform:translateY(1px)}
+button.sec{background:#efebe2;color:var(--ink)}button.sec:hover{background:#e5dfd2}
+button.oc{background:var(--oc)}button.oc:hover{background:var(--oc2)}
+button:disabled{opacity:.45;cursor:default;transform:none}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #e7b877;outline-offset:2px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#map{height:min(68vh,600px);border-radius:12px;border:1px solid var(--line)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--mut);margin-top:10px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:6px}
+.status{font-size:13px;color:var(--mut);margin-top:8px;min-height:20px}
+.status.err{color:var(--red)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--mut);font-weight:600;background:#faf8f3}
+td.n{text-align:right;white-space:nowrap}
+tr.sel{background:var(--ocl)}tr.click{cursor:pointer}tr.click:hover{background:#faf6ef}
+.scroll{overflow-x:auto}
+.pill{display:inline-block;font:700 12px Inter;padding:2px 8px;border-radius:99px;background:#efebe2}
+.pill.r{background:#f7dcd7;color:#8a2216}.pill.o{background:#f6e3c4;color:#7a4a0c}
+.empty{color:var(--mut);font-size:14px;padding:22px;border:1px dashed var(--line);border-radius:12px;text-align:center;background:#fcfbf8}
+.note{font-size:12.5px;color:var(--mut);margin-top:10px}
+/* resultado */
+.res{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;padding:18px;border-radius:14px;background:#faf8f3;border:1px solid var(--line);margin-bottom:14px}
+@media(max-width:600px){.res{grid-template-columns:1fr}}
+.res .big{font:800 20px Manrope;padding:12px 18px;border-radius:12px;color:#fff;text-align:center;letter-spacing:-.01em}
+.res .big.nc{background:var(--red)}.res .big.c{background:var(--ok)}
+.res .info{font-size:14px;color:var(--mut);line-height:1.7}.res .info b{color:var(--ink)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpis div{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fff}
+.kpis b{display:block;font:800 22px Manrope;letter-spacing:-.02em}
+.kpis span{font-size:12.5px;color:var(--mut)}
+.tag{display:inline-flex;align-items:center;gap:5px;font:700 12px Inter;padding:4px 10px;border-radius:99px;white-space:nowrap}
+.tag.c{background:#dcefe2;color:#1e5e39}.tag.nc{background:#f7d9d4;color:#8a2216}.tag.v{background:#f1e8d4;color:#6b5420}
+.tag.c::before{content:"✓"}.tag.nc::before{content:"✕"}.tag.v::before{content:"!"}
+.det{border:1px solid var(--line);border-left:4px solid var(--red);border-radius:10px;padding:12px 14px;margin-top:8px;font-size:14px;background:#fff}
+.det b{display:block;font:700 14px Manrope;margin-bottom:3px}.det span{color:var(--mut)}
+/* cenas */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-top:14px}
+.scene{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.scene canvas{display:block;width:100%;aspect-ratio:1/1;background:#e9e6dc}
+.scene .meta{padding:10px 12px;display:grid;gap:6px}
+.scene .meta b{font:800 17px Manrope}
+.scene select{min-height:38px;font-size:14px;padding:6px 8px}
+.inpe img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:#e9e6dc}
+.inpe .meta b{font:700 15px Manrope}
+.inpe a,.inpe button{font:600 13px Inter;min-height:38px;padding:8px 10px;border-radius:8px;text-align:center;text-decoration:none}
+.inpe a{background:var(--g);color:#fff}
+.cmp{position:relative;width:min(100%,640px);aspect-ratio:1/1;margin-top:12px;border-radius:14px;overflow:hidden;border:1px solid var(--line);touch-action:none}
+.cmp canvas{position:absolute;inset:0;width:100%;height:100%}
+.cmp .bar{position:absolute;top:0;bottom:0;width:3px;background:#fff;box-shadow:0 0 6px #0008;pointer-events:none}
+.cmp .lb{position:absolute;top:10px;font:600 12px Inter;background:#16171acc;color:#fff;padding:4px 8px;border-radius:6px}
+input[type=range]{width:min(100%,640px);margin-top:10px;accent-color:var(--oc)}
+.prog{height:4px;background:#efebe2;border-radius:4px;overflow:hidden;margin-top:10px}
+.prog div{height:100%;width:0;background:var(--oc);transition:width .2s}
+.sens{display:flex;flex-wrap:wrap;gap:8px}
+.sens label{display:flex;align-items:center;gap:7px;margin:0;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font:500 13.5px Inter;color:var(--ink);cursor:pointer}
+.sens label small{color:var(--mut)}
+.sens input{accent-color:var(--oc);width:16px;height:16px}
+.isum{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+.isum span{font:600 13px Inter;padding:6px 11px;border-radius:99px;background:var(--ocl);color:var(--oc2)}
+.anoD{border:1px solid var(--line);border-radius:12px;margin-top:10px;background:#fff}
+.anoD summary{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;list-style:none}
+.anoD summary::-webkit-details-marker{display:none}
+.anoD summary::after{content:"+";margin-left:auto;font:700 20px Inter;color:var(--mut)}
+.anoD[open] summary::after{content:"–"}
+.anoD .ano{font:800 18px Manrope}
+.anoD .q{font-size:13px;color:var(--mut)}
+.anoD .grid{margin:0;padding:0 14px 14px}
+.inpe .meta details{font-size:13px}
+.inpe .meta summary{cursor:pointer;font-weight:600;padding:6px 0}
+.inpe .arq{display:grid;gap:6px;margin-top:4px}
+.inpe .arq div{display:flex;gap:6px}
+.inpe .arq a,.inpe .arq button{flex:1;font-size:12px;min-height:34px;padding:6px 8px}
+.exp{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.exp button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:14px 16px;min-height:72px}
+.exp button small{font:500 12.5px Inter;opacity:.75}
+/* modo público: prévia com marca d'água, sem exportação */
+body.publico .wmz{position:relative}
+body.publico .wmz::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:600;background:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='190'%3E%3Ctext x='10' y='120' transform='rotate(-24 150 95)' font-family='Inter,Arial' font-weight='700' font-size='19' fill='white' fill-opacity='.38' stroke='black' stroke-opacity='.18' stroke-width='.6'%3ER.A AgroTec · prévia%3C/text%3E%3C/svg%3E") repeat;border-radius:inherit}
+body.publico canvas,body.publico img{-webkit-user-drag:none;user-select:none;-webkit-touch-callout:none}
+.lock::before{content:"🔒 ";}
+.tecbadge{display:none;align-items:center;gap:8px;font:700 12px Inter;background:var(--ocl);color:var(--oc2);padding:6px 10px;border-radius:99px}
+body.tec .tecbadge{display:inline-flex}
+.tecbadge button{min-height:0;padding:3px 8px;font-size:12px;background:#fff;color:var(--ink)}
+.modal{position:fixed;inset:0;z-index:3000;background:rgba(10,10,10,.55);display:none;align-items:center;justify-content:center;padding:16px}
+.modal.on{display:flex}
+.modal .box{background:#fff;border-radius:16px;padding:22px;max-width:380px;width:100%}
+.modal h3{margin:0 0 6px;font-size:18px}
+@media print{body.publico>*{display:none!important}body.publico::after{content:"Impressão disponível no relatório oficial — WhatsApp (62) 99415-5001";display:block;padding:40px;font:700 18px Inter}}
+/* WhatsApp */
+.wa{display:inline-flex;align-items:center;gap:10px;background:#1fa855;color:#fff;text-decoration:none;font:700 15px Inter;padding:12px 18px;border-radius:12px;min-height:46px}
+.wa:hover{background:#178f47}
+.wa svg{width:22px;height:22px;flex:none}
+.wafab{position:fixed;right:18px;bottom:18px;z-index:1200;border-radius:99px;padding:14px 18px;box-shadow:0 10px 30px rgba(0,0,0,.28)}
+@media(max-width:600px){.wafab span{display:none}.wafab{padding:14px}}
+.cta{display:flex;flex-wrap:wrap;align-items:center;gap:14px;justify-content:space-between;margin-top:16px;padding:16px 18px;border-radius:14px;background:var(--ink);color:#fff}
+.cta p{margin:0;font-size:14.5px;color:#ddd5c8;max-width:560px}.cta b{color:#fff;font:800 17px Manrope;display:block;margin-bottom:2px}
+/* rodapé */
+footer{background:#16171a;color:#cfc8bb;margin-top:10px}
+footer .in{max-width:1320px;margin:0 auto;padding:32px max(3vw,14px);display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:start}
+@media(max-width:700px){footer .in{grid-template-columns:1fr}}
+footer img{height:64px;background:#fff;border-radius:12px;padding:4px}
+footer b{color:#fff;font:800 16px Manrope}
+footer p{margin:6px 0 0;font-size:13px;line-height:1.6;max-width:860px}
+@media(max-width:600px){table{font-size:13px}.row{grid-template-columns:1fr}.search{flex-direction:column}.search button{width:100%}
+.stack thead{display:none}.stack tr{display:grid;padding:8px 0;border-bottom:1px solid var(--line)}.stack td{display:flow-root;border:0;padding:3px 0;padding-inline-start:9em;text-align:start!important;white-space:normal}.stack td::before{content:attr(data-l);float:inline-start;width:8.5em;margin-inline-start:-9em;color:var(--mut);font-size:12px}}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="in">
+  <img id="logoImg" alt="R.A AgroTec — Soluções Rurais"><div class="brand">R.A AgroTec<small>Soluções Rurais</small></div>
+  <span class="tecbadge">Modo técnico <button id="bSairTec" type="button">Sair</button></span>
+  <nav><a href="#analise">Análise</a><a href="#conformidade">Conformidade</a><a href="#multitemporal">Multitemporal</a><a href="#inpe-sec">Imagens INPE</a><a href="#exportar">Relatório</a></nav>
+</div></div>
+
+<section class="hero">
+  <div class="in">
+    <h1>Diagnóstico socioambiental do <em>imóvel rural</em> em minutos</h1>
+    <p class="lead">Desmatamento PRODES e MapBiomas, embargos, terras indígenas, unidades de conservação e imagens de satélite de 1985 até hoje — tudo a partir do número do CAR, com relatório em PDF.</p>
+    <div class="search">
+      <input type="text" id="codCar" placeholder="Cole aqui o nº do recibo do CAR" maxlength="50" autocomplete="off" spellcheck="false" aria-label="Número do recibo do CAR">
+      <button id="bCar">Analisar imóvel</button>
+    </div>
+    <div class="hint">Número do recibo do CAR federal (SICAR) · <button type="button" id="bUpl">ou envie o limite em shapefile, KML ou GeoJSON</button></div>
+    <div class="upl" id="upl">
+      <label for="fImovel" style="margin-top:0">Limite do imóvel (.zip shapefile, .kml ou .geojson)</label>
+      <input type="file" id="fImovel" accept=".zip,.kml,.geojson,.json">
+      <label for="fAlertas">Alertas próprios (opcional — senão busca PRODES automaticamente)</label>
+      <input type="file" id="fAlertas" accept=".zip,.kml,.geojson,.json">
+    </div>
+    <div class="status" id="st1"></div>
+    <div class="chips"><span>18 critérios socioambientais</span><span>PRODES · 6 biomas</span><span>MapBiomas Alerta</span><span>IBAMA · ICMBio</span><span>FUNAI · INCRA · UCs</span><span>Landsat · Sentinel-2</span><span>CBERS-4A 2 m</span></div>
+  </div>
+  <span class="credit">Imagem: Sentinel-2 (Copernicus/ESA), Cristalina-GO, ago/2025</span>
+</section>
+
+<main>
+<section class="top" id="analise">
+  <div class="card">
+    <div class="sh"><span class="n">1</span><div><h2>Imóvel</h2><p>Dados que aparecem no relatório e filtros da análise.</p></div></div>
+    <label for="nome" style="margin-top:0">Nome do imóvel</label><input type="text" id="nome" placeholder="Fazenda Boa Vista">
+    <label for="car">Nº do CAR</label><input type="text" id="car" placeholder="GO-5208905-F496.4288....">
+    <label for="mun">Município/UF</label><input type="text" id="mun" placeholder="Goiânia-GO">
+    <h3>Filtros</h3>
+    <div class="row">
+      <div><label for="minHa">Área mínima no imóvel (ha)</label><input type="number" id="minHa" value="6.24" step="0.01" min="0"></div>
+      <div><label for="anoMin">Alertas a partir de</label><input type="number" id="anoMin" value="2008" step="1"></div>
+    </div>
+    <div class="btns"><button id="bBuscar" disabled>Refazer análise</button></div>
+  </div>
+  <div class="card">
+    <div class="wmz" style="border-radius:12px"><div id="map"></div></div>
+    <div class="legend">
+      <span><i style="border:2px solid var(--yel)"></i>Imóvel</span>
+      <span><i style="background:#d6402f88;border:1px solid #d6402f"></i>Alerta no imóvel</span>
+      <span><i style="background:#b9741f66;border:1px dashed var(--oc)"></i>Embargo (IBAMA/ICMBio)</span>
+      <span><i style="background:#7b4bb755;border:1px solid #7b4bb7"></i>TI / UC / Quilombola / Assentamento</span>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="conformidade">
+  <div class="sh"><span class="n">2</span><div><h2>Conformidade socioambiental</h2><p>Cruzamento do limite do imóvel com as bases oficiais de desmatamento, embargos e áreas protegidas.</p></div></div>
+  <div id="conf"><div class="empty">Digite o número do CAR no topo da página para analisar os critérios.</div></div>
+  <h3>Alertas de desmatamento no imóvel</h3>
+  <div id="tabs" class="scroll"><div class="empty">Nenhum resultado ainda.</div></div>
+</section>
+
+<section class="card" id="multitemporal">
+  <div class="sh"><span class="n">3</span><div><h2>Análise multitemporal</h2><p>Cenas Landsat (desde 1985) e Sentinel-2 (desde 2017) com menos nuvem, para conferir o uso do solo antes e depois de cada alerta.</p></div></div>
+  <div class="row" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+    <div><label for="alvo">Área analisada</label><select id="alvo"><option value="imovel">Imóvel inteiro</option></select></div>
+    <div><label for="comp">Composição</label><select id="comp">
+      <option value="nat">Cor natural</option>
+      <option value="fc">Falsa-cor (SWIR/NIR/R) — destaca vegetação</option></select></div>
+    <div><label for="periodo">Período das cenas</label><select id="periodo">
+      <option value="seco">Estação seca (mai–set), menos nuvem</option>
+      <option value="ano">Ano inteiro</option></select></div>
+    <div><label for="sensor">Sensor a partir de 2017</label><select id="sensor">
+      <option value="s2">Sentinel-2 (10 m)</option>
+      <option value="ls">Landsat (30 m)</option></select></div>
+  </div>
+  <label for="anos">Anos (separados por vírgula). 2008 usa cenas até 22/07/2008 (marco do Código Florestal).</label>
+  <input type="text" id="anos" value="2000, 2005, 2008, 2012, 2016, 2020, 2024">
+  <div class="btns">
+    <button class="sec" id="bSug">Sugerir anos para o alerta</button>
+    <button id="bGerar" disabled>Gerar cenas</button>
+  </div>
+  <div class="prog"><div id="pg"></div></div>
+  <div class="status" id="st2"></div>
+  <div class="grid" id="grid"></div>
+  <h3>Comparar duas datas</h3>
+  <div class="row" style="max-width:640px">
+    <div><label for="cA">Antes</label><select id="cA"></select></div>
+    <div><label for="cB">Depois</label><select id="cB"></select></div>
+  </div>
+  <div class="cmp" id="cmp"><canvas id="cvA"></canvas><canvas id="cvB"></canvas><div class="bar" id="bar"></div>
+    <span class="lb" id="lbA" style="left:10px;top:42px"></span><span class="lb" id="lbB" style="right:10px;top:58px"></span></div>
+  <input type="range" id="sw" min="0" max="100" value="50" aria-label="Arraste para comparar">
+</section>
+
+<section class="card" id="inpe-sec">
+  <div class="sh"><span class="n">4</span><div><h2>Imagens INPE (2007 até hoje)</h2><p>Todas as cenas do catálogo do INPE (Brazil Data Cube) que cobrem o imóvel: CBERS-2/2B, ResourceSat-1, CBERS-4 e CBERS-4A. Baixe as bandas em GeoTIFF ou abra direto no QGIS pelo link, que carrega só a área visível.</p></div></div>
+  <div class="row" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));max-width:520px">
+    <div><label for="iAno0">De (ano)</label><input type="number" id="iAno0" value="2007" min="2003" step="1"></div>
+    <div><label for="iAno1">Até (ano)</label><input type="number" id="iAno1" min="2003" step="1"></div>
+  </div>
+  <label>Sensores</label>
+  <div class="sens" id="iSens"></div>
+  <div class="btns"><button id="bInpe" disabled>Buscar cenas INPE</button></div>
+  <div class="prog"><div id="pgI"></div></div>
+  <div class="status" id="st4"></div>
+  <div id="inpeRes"></div>
+</section>
+
+<section class="card" id="exportar">
+  <div class="sh"><span class="n">5</span><div><h2>Relatório e arquivos</h2><p>Baixe o diagnóstico completo ou os vetores para usar no QGIS e no Google Earth.</p></div></div>
+  <div class="exp">
+    <button class="oc" id="bPdf" disabled>Relatório em PDF<small>Capa, extrato, detalhamento, mapa e cenas</small></button>
+    <button class="sec" id="bShp" disabled>Shapefile (.zip)<small>Imóvel + alertas, SIRGAS 2000</small></button>
+    <button class="sec" id="bKml" disabled>KML<small>Abre no Google Earth</small></button>
+    <button class="sec" id="bPng" disabled>PNG das cenas<small>Grade multitemporal</small></button>
+  </div>
+  <div class="status" id="st3"></div>
+</section>
+</main>
+
+<div class="modal" id="mTec"><div class="box"><h3>Acesso do técnico</h3><p class="note" style="margin-top:0">Digite o código de acesso para liberar exportações e downloads neste aparelho.</p>
+<input type="text" id="codTec" placeholder="RA-XXXX-XXXX" autocomplete="off" autocapitalize="characters"><div class="btns"><button id="bTecOk">Entrar</button><button class="sec" id="bTecX">Cancelar</button></div><div class="status" id="stTec"></div></div></div>
+<a class="wa wafab" id="waFab" target="_blank" rel="noopener" href="https://wa.me/5562994155001?text=Ol%C3%A1!%20Vim%20pelo%20app%20R.A%20AgroTec%20e%20quero%20um%20diagn%C3%B3stico%20do%20meu%20im%C3%B3vel."><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3a.5.5 0 0 0 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.9 11.9 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.2c0-.1-.2-.2-.5-.3Z"/></svg><span>Fale com o técnico</span></a>
+<footer><div class="in">
+  <img id="logoFoot" alt="R.A AgroTec">
+  <div><b>R.A AgroTec · Soluções Rurais</b>
+  <p>Fontes: PRODES (INPE/TerraBrasilis), MapBiomas Alerta, SICAR, IBAMA, ICMBio, FUNAI, INCRA, CNUC/SFB, Landsat (USGS/NASA), Sentinel-2 (Copernicus/ESA) via Microsoft Planetary Computer e CBERS-4A (INPE/Brazil Data Cube).</p>
+  <p><a class="wa" style="margin:8px 0 4px" target="_blank" rel="noopener" href="https://wa.me/5562994155001?text=Ol%C3%A1!%20Vim%20pelo%20app%20R.A%20AgroTec."><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3a.5.5 0 0 0 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.9 11.9 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.2c0-.1-.2-.2-.5-.3Z"/></svg>WhatsApp (62) 99415-5001</a></p>
+  <p>Triagem automática a partir de bases públicas: as ocorrências precisam de conferência nas fontes oficiais e avaliação técnica antes de qualquer decisão.</p></div>
+</div></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://unpkg.com/shpjs@4.0.4/dist/shp.js"></script>
+<script src="https://unpkg.com/@mapbox/togeojson@0.16.2/togeojson.js"></script>
+<script>
+{
+const LOGO='data:image/png;base64,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';
+const PC='https://planetarycomputer.microsoft.com/api';
+const TB='https://terrabrasilis.dpi.inpe.br/geoserver/ows';
+const PRODES=[['prodes-cerrado-nb:yearly_deforestation','PRODES Cerrado'],['prodes-legal-amz:yearly_deforestation','PRODES Amazônia Legal'],['prodes-mata-atlantica-nb:yearly_deforestation','PRODES Mata Atlântica'],['prodes-caatinga-nb:yearly_deforestation','PRODES Caatinga'],['prodes-pantanal-nb:yearly_deforestation','PRODES Pantanal'],['prodes-pampa-nb:yearly_deforestation','PRODES Pampa']];
+const $=id=>document.getElementById(id);
+document.getElementById('logoImg').src=LOGO;document.getElementById('logoFoot').src=LOGO;
+document.getElementById('bUpl').addEventListener('click',()=>document.getElementById('upl').classList.toggle('on'));
+window.__RA=()=>S;
+const WA_NUM='5562994155001',WA_SVG='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3a.5.5 0 0 0 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.9 11.9 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.2c0-.1-.2-.2-.5-.3Z"/></svg>';
+function waLink(msg){return 'https://wa.me/'+WA_NUM+'?text='+encodeURIComponent(msg)}
+function msgLaudo(){const g=S.criterios.length?(resultadoGeral()==='NC'?'NÃO CONFORME':'CONFORME'):'';const nc=S.criterios.filter(c=>c.res==='NC').map(c=>c.nome);
+  return `Olá! Fiz a consulta no app R.A AgroTec e quero o laudo completo.\nImóvel: ${$('nome').value||'—'}\nCAR: ${$('car').value||'—'}\nMunicípio: ${$('mun').value||'—'}`+(g?`\nResultado: ${g}`:'')+(nc.length?`\nNão conformidades: ${nc.join('; ')}`:'')}
+
+const TEC_HASH='f37f6240ec5ad0580416d1910ccdce5b5816ea70978975272c8d0c26a3cdedcd';
+async function sha256(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+let TEC=false;try{TEC=localStorage.getItem('ra_tec')===TEC_HASH}catch(e){}
+function aplicarModo(){document.body.classList.toggle('tec',TEC);document.body.classList.toggle('publico',!TEC);
+  ['bPdf','bShp','bKml','bPng'].forEach(id=>{const b=document.getElementById(id);if(!b)return;b.classList.toggle('lock',!TEC);const sm=b.querySelector('small');if(sm){if(!sm.dataset.o)sm.dataset.o=sm.textContent;sm.textContent=TEC?sm.dataset.o:'Liberado após pagamento — toque para solicitar no WhatsApp'}});
+  if(S.cenas&&S.cenas.length&&typeof redesenharTudo==='function')redesenharTudo();}
+function msgCompra(item){return `Olá! Fiz a consulta no app R.A AgroTec e quero comprar: ${item}.\nImóvel: ${$('nome').value||'—'}\nCAR: ${$('car').value||'—'}\nMunicípio: ${$('mun').value||'—'}`+(S.criterios.length?`\nResultado: ${resultadoGeral()==='NC'?'NÃO CONFORME':'CONFORME'}`:'')}
+function abrirWA(msg){const a=document.createElement('a');a.href=waLink(msg);a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove()}
+const ITENS={bPdf:'o relatório completo em PDF',bShp:'o shapefile do imóvel e dos alertas',bKml:'o arquivo KML do imóvel e dos alertas',bPng:'as imagens da análise multitemporal'};
+document.addEventListener('click',e=>{if(TEC)return;const b=e.target.closest('#bPdf,#bShp,#bKml,#bPng,[data-qgis],.arq a');if(!b)return;
+  e.preventDefault();e.stopImmediatePropagation();abrirWA(msgCompra(ITENS[b.id]||'as imagens de satélite do INPE em alta resolução'))},true);
+document.addEventListener('contextmenu',e=>{if(!TEC&&e.target.closest('canvas,img,#map'))e.preventDefault()});
+document.addEventListener('keydown',e=>{if(!TEC&&(e.ctrlKey||e.metaKey)&&['p','s'].includes(e.key.toLowerCase())){e.preventDefault();abrirWA(msgCompra('o relatório completo em PDF'))}});
+function abrirTec(){document.getElementById('mTec').classList.add('on');setTimeout(()=>document.getElementById('codTec').focus(),50)}
+document.getElementById('bTecX').addEventListener('click',()=>document.getElementById('mTec').classList.remove('on'));
+document.getElementById('bTecOk').addEventListener('click',async()=>{const c=document.getElementById('codTec').value.trim().toUpperCase();
+  if(await sha256(c)===TEC_HASH){TEC=true;try{localStorage.setItem('ra_tec',TEC_HASH)}catch(e){}document.getElementById('mTec').classList.remove('on');aplicarModo()}
+  else{document.getElementById('stTec').textContent='Código incorreto.';document.getElementById('stTec').className='status err'}});
+document.getElementById('codTec').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('bTecOk').click()});
+document.getElementById('bSairTec').addEventListener('click',()=>{TEC=false;try{localStorage.removeItem('ra_tec')}catch(e){}aplicarModo()});
+if(/[?&#]tecnico\b/.test(location.search+location.hash)&&!TEC)abrirTec();
+const S={imovel:null,uniao:null,alertas:[],embargos:[],protegidas:[],criterios:[],car:null,uf:'',alertasArquivo:null,cenas:[],sel:null};
+aplicarModo();
+const fmt=(n,d=2)=>n.toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fdate=s=>{if(!s)return'';const d=new Date(s);return isNaN(d)?String(s):d.toLocaleDateString('pt-BR',{timeZone:'UTC'})};
+const status=(el,msg,err)=>{$(el).textContent=msg;$(el).className='status'+(err?' err':'');if(el==='st1'&&!S.criterios.length&&$('conf')&&S.uniao&&!err)$('conf').innerHTML=`<div class="empty">${msg}</div>`};
+
+/* ---------- mapa ---------- */
+const map=L.map('map',{zoomControl:true}).setView([-15.8,-49.3],6);
+const esri=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri World Imagery'}).addTo(map);
+const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
+const gInpe=L.featureGroup().addTo(map),gImovel=L.featureGroup().addTo(map),gAlerta=L.featureGroup().addTo(map),gEmb=L.featureGroup().addTo(map),gProt=L.featureGroup().addTo(map);
+L.control.layers({'Satélite (Esri)':esri,'Ruas (OSM)':osm},{'Imóvel':gImovel,'Alertas':gAlerta,'Embargos':gEmb,'Áreas protegidas':gProt}).addTo(map);
+
+/* ---------- leitura de arquivos ---------- */
+async function lerArquivo(file){
+  const nome=file.name.toLowerCase();
+  let fc;
+  if(nome.endsWith('.zip')){
+    const r=await shp(await file.arrayBuffer());
+    const arr=Array.isArray(r)?r:[r];
+    fc={type:'FeatureCollection',features:arr.flatMap(x=>x.features||[])};
+  }else if(nome.endsWith('.kml')){
+    const dom=new DOMParser().parseFromString(await file.text(),'text/xml');
+    fc=toGeoJSON.kml(dom);
+  }else{
+    const j=JSON.parse(await file.text());
+    fc=j.type==='FeatureCollection'?j:{type:'FeatureCollection',features:[j.type==='Feature'?j:{type:'Feature',properties:{},geometry:j}]};
+  }
+  fc.features=fc.features.filter(f=>f&&f.geometry&&/Polygon/.test(f.geometry.type));
+  if(!fc.features.length)throw new Error('Nenhum polígono encontrado no arquivo.');
+  return fc;
+}
+function unir(fc){
+  let u=fc.features[0];
+  for(let i=1;i<fc.features.length;i++){try{u=turf.union(u,fc.features[i])||u}catch(e){}}
+  return u;
+}
+function intersecao(a,b){
+  try{return turf.intersect(a,b)}catch(e){
+    try{return turf.intersect(turf.buffer(a,0),turf.buffer(b,0))}catch(e2){return null}
+  }
+}
+/* área em hectares no elipsoide GRS80/SIRGAS 2000 (projeção cônica equivalente de Albers — padrão IBGE para o Brasil) */
+const ALB=(()=>{const a=6378137,f=1/298.257222101,e2=2*f-f*f,e=Math.sqrt(e2),R=Math.PI/180;
+  const q=ph=>{const s=Math.sin(ph);return (1-e2)*(s/(1-e2*s*s)-(1/(2*e))*Math.log((1-e*s)/(1+e*s)))};
+  const m=ph=>Math.cos(ph)/Math.sqrt(1-e2*Math.sin(ph)**2);
+  const p1=-2*R,p2=-22*R,p0=-12*R,l0=-54*R,m1=m(p1),m2=m(p2),q1=q(p1),q2=q(p2),n=(m1*m1-m2*m2)/(q2-q1),C=m1*m1+n*q1,r0=a*Math.sqrt(C-n*q(p0))/n;
+  return (lon,lat)=>{const r=a*Math.sqrt(C-n*q(lat*R))/n,t=n*(lon*R-l0);return [r*Math.sin(t),r0-r*Math.cos(t)]}})();
+function areaAnel(r){let s=0;const P=r.map(c=>ALB(c[0],c[1]));for(let i=0,j=P.length-1;i<P.length;j=i++)s+=(P[j][0]*P[i][1]-P[i][0]*P[j][1]);return Math.abs(s)/2}
+function areaM2(g){const geom=g.type==='Feature'?g.geometry:g;if(!geom)return 0;
+  const polys=geom.type==='Polygon'?[geom.coordinates]:geom.type==='MultiPolygon'?geom.coordinates:[];
+  return polys.reduce((t,p)=>t+areaAnel(p[0])-p.slice(1).reduce((h,r)=>h+areaAnel(r),0),0)}
+const haDe=g=>g?areaM2(g)/1e4:0;
+
+const SICAR='https://geoserver.car.gov.br/geoserver/sicar/wfs';
+function normCar(v){return v.toUpperCase().replace(/[\s.]/g,'').replace(/[–—]/g,'-')}
+/* formato do recibo federal: UF-IBGE-XXXX.XXXX.XXXX.XXXX.XXXX.XXXX.XXXX.XXXX */
+function fmtCar(v){
+  const c=v.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const uf=c.slice(0,2).replace(/[^A-Z]/g,''),ibge=c.slice(2,9).replace(/\D/g,''),h=c.slice(9,41).replace(/[^0-9A-F]/g,'');
+  let out=uf;
+  if(c.length>2)out+='-'+ibge;
+  if(c.length>9)out+='-'+(h.match(/.{1,4}/g)||[]).join('.');
+  return out;
+}
+$('codCar').addEventListener('input',e=>{const el=e.target,antes=el.value,pos=el.selectionStart,nAntes=antes.slice(0,pos).replace(/[^A-Za-z0-9]/g,'').length;
+  const f=fmtCar(antes);if(f===antes)return;el.value=f;
+  let i=0,n=0;while(i<f.length&&n<nAntes){if(/[A-Z0-9]/.test(f[i]))n++;i++}
+  try{el.setSelectionRange(i,i)}catch(x){}});
+async function buscarCar(){
+  const cod=normCar($('codCar').value);
+  if(!/^[A-Z]{2}-\d{7}-[0-9A-F]{32}$/.test(cod)){status('st1','Número do CAR incompleto ou inválido. Formato do recibo: GO-5208905-F496.4288.1887.4B9C.BBA5.7AD8.1323.48B1',true);return}
+  const uf=cod.slice(0,2).toLowerCase();
+  $('bCar').disabled=true;$('bCar').textContent='Analisando…';status('st1','Consultando o SICAR…');
+  try{
+    const u=`${SICAR}?service=WFS&version=2.0.0&request=GetFeature&typeNames=sicar:sicar_imoveis_${uf}&outputFormat=application/json&srsName=EPSG:4326&cql_filter=${encodeURIComponent(`cod_imovel='${cod}'`)}`;
+    let r=null;for(let t=0;t<4;t++){try{r=await fetch(u+'&_='+Date.now(),{cache:'no-store'});if(r.ok)break}catch(e){r=null}if(t<3){status('st1',`SICAR instável — nova tentativa (${t+2}/4)…`);await new Promise(z=>setTimeout(z,1500*(t+1)))}}
+    if(!r)throw new Error('não foi possível acessar o SICAR agora. Tente de novo em alguns minutos.');if(!r.ok)throw new Error('SICAR respondeu '+r.status);
+    const j=await r.json();
+    if(!j.features||!j.features.length)throw new Error('CAR não encontrado na base pública do SICAR.');
+    const p=j.features[0].properties;S.car=p;S.uf=(p.uf||uf).toUpperCase();
+    $('car').value=fmtCar(cod);$('codCar').value=fmtCar(cod);$('mun').value=`${p.municipio||''}-${(p.uf||uf).toUpperCase()}`;
+    document.getElementById('analise').scrollIntoView({behavior:'smooth'});
+    await carregarImovel(j,`CAR ${p.condicao?'· '+p.condicao:''}${p.tipo_imovel?' · '+p.tipo_imovel:''}`);
+  }catch(err){status('st1','Erro: '+err.message,true)}
+  $('bCar').disabled=false;$('bCar').textContent='Analisar imóvel';
+}
+$('bCar').addEventListener('click',buscarCar);
+$('codCar').addEventListener('keydown',e=>{if(e.key==='Enter')buscarCar()});
+$('fImovel').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{status('st1','Lendo imóvel…');S.car=null;S.uf='';await carregarImovel(await lerArquivo(f),'Arquivo')}
+  catch(err){status('st1','Erro ao ler o imóvel: '+err.message,true)}
+});
+async function carregarImovel(fc,origem){
+  {
+    fc.features=fc.features.filter(f=>f&&f.geometry&&/Polygon/.test(f.geometry.type));
+    S.imovel=fc;S.uniao=unir(S.imovel);
+    gImovel.clearLayers();
+    L.geoJSON(S.imovel,{style:{color:'#f2c200',weight:3,fill:false}}).addTo(gImovel);
+    map.fitBounds(gImovel.getBounds(),{padding:[20,20]});
+    const p=S.imovel.features[0].properties||{};
+    if(!$('car').value&&(p.cod_imovel||p.COD_IMOVEL))$('car').value=fmtCar(p.cod_imovel||p.COD_IMOVEL);
+    if(!$('mun').value&&(p.municipio||p.MUNICIPIO))$('mun').value=(p.municipio||p.MUNICIPIO)+(p.cod_estado||p.COD_ESTADO?'-'+(p.cod_estado||p.COD_ESTADO):'');
+    status('st1',`Imóvel carregado (${origem}): ${fmt(haDe(S.uniao))} ha. Buscando alertas…`);
+    $('bBuscar').disabled=false;$('bGerar').disabled=false;$('bInpe').disabled=false;$('inpeRes').innerHTML='';gInpe.clearLayers();
+    await buscar();
+  }
+}
+$('fAlertas').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{S.alertasArquivo=await lerArquivo(f);status('st1',`${S.alertasArquivo.features.length} alertas lidos do arquivo.`);if(S.uniao)await buscar()}
+  catch(err){status('st1','Erro ao ler alertas: '+err.message,true)}
+});
+$('bBuscar').addEventListener('click',buscar);
+['minHa','anoMin'].forEach(id=>$(id).addEventListener('change',()=>{if(S.uniao)buscar()}));
+
+/* ---------- análise de conformidade ---------- */
+const PB='https://pamgia.ibama.gov.br/server/rest/services';
+const ARC={
+  ibama:'01_Publicacoes_Bases/adm_embargos_ibama_a/MapServer/0',
+  icmbio:'01_Publicacoes_Bases/adm_embargo_icmbio_a/MapServer/0',
+  ti:'01_Publicacoes_Bases/lim_terra_indigena_a/MapServer/12',
+  ucf:'01_Publicacoes_Bases/lim_unidade_conservacao_a/MapServer/13',
+  uce:'01_Publicacoes_Bases/lim_unidade_conservacao_est_a/MapServer/14',
+  quil:'BasesSincronizadas/lim_quilombos_incra_a/MapServer/0',
+  assent:'01_Publicacoes_Bases/assentamentos_incra/MapServer/1'
+};
+const STATUS_CAR={AT:'Ativo',PE:'Pendente',SU:'Suspenso',CA:'Cancelado'};
+async function qArc(path,bb){
+  const u=`${PB}/${path}/query?where=1%3D1&geometry=${bb.join(',')}&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&resultRecordCount=2000&f=geojson`;
+  try{const r=await fetch(u+'&_='+Date.now(),{cache:'no-store'});if(!r.ok)return null;const j=await r.json();if(j.error)return null;return j.features||[]}catch(e){return null}
+}
+async function qProdes(layer,bb){
+  const [w,s,e,n]=bb;
+  const u=`${TB}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${layer}&outputFormat=application/json&srsName=EPSG:4326&count=5000&bbox=${s},${w},${n},${e},urn:ogc:def:crs:EPSG::4326`;
+  try{const r=await fetch(u);if(!r.ok)return null;const j=await r.json();return j.features||[]}catch(err){return null}
+}
+const dataDe=v=>{if(v==null||v==='')return'';if(typeof v==='number'){return fdate(v<1e11?v*1000:v)}return fdate(v)};
+function sobrepor(feats,fn){ // devolve itens com geometria da sobreposição
+  const aImovel=haDe(S.uniao),out=[];
+  (feats||[]).forEach(f=>{const g=intersecao(S.uniao,f);if(!g)return;const ha=haDe(g);if(ha<0.0001)return;
+    const p=f.properties||{},haF=haDe(f);
+    const it={ha,pctCrit:haF?ha/haF*100:0,pctTerr:aImovel?ha/aImovel*100:0,geom:g,orig:f,p};Object.assign(it,fn(p));out.push(it)});
+  return out;
+}
+function ufImovel(){
+  if(S.uf)return S.uf;
+  const c=($('car').value||'').toUpperCase().match(/^([A-Z]{2})-/);if(c)return c[1];
+  const m=($('mun').value||'').toUpperCase().match(/-([A-Z]{2})\s*$/);return m?m[1]:'';
+}
+function anoDe(p){return parseInt(attr(p,['year','ano','ano_alerta','yeardetec']))||null}
+const MB='https://plataforma.alerta.mapbiomas.org/api/v2/graphql';
+function wktParaGeo(w){
+  if(!w)return null;const t=w.trim().toUpperCase();
+  const anel=str=>str.trim().split(',').map(pt=>pt.trim().split(/\s+/).map(Number));
+  const poly=str=>{const rings=[];let d=0,st=0;for(let i=0;i<str.length;i++){if(str[i]==='('){if(d===0)st=i+1;d++}else if(str[i]===')'){d--;if(d===0)rings.push(anel(str.slice(st,i)))}}return rings};
+  if(t.startsWith('POLYGON')){return{type:'Polygon',coordinates:poly(t.slice(t.indexOf('(')+1,t.lastIndexOf(')')))}}
+  if(t.startsWith('MULTIPOLYGON')){const inner=t.slice(t.indexOf('(')+1,t.lastIndexOf(')'));const polys=[];let d=0,st=0;
+    for(let i=0;i<inner.length;i++){if(inner[i]==='('){if(d===0)st=i+1;d++}else if(inner[i]===')'){d--;if(d===0)polys.push(poly(inner.slice(st,i)))}}
+    return{type:'MultiPolygon',coordinates:polys}}
+  return null;
+}
+async function qMapBiomas(cod){
+  const q=`{ ruralProperty(propertyCode:"${cod}") { alerts { alertCode areaHa detectedAt publishedAt statusName geometryWkt crossedRuralProperties { alertAreaInCar code } } } }`;
+  try{const r=await fetch(MB,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query:q})});if(!r.ok)return null;
+    const j=await r.json();if(j.errors&&!j.data)return null;const rp=j.data&&j.data.ruralProperty;if(!rp)return [];
+    return (rp.alerts||[]).map(a=>{const g=wktParaGeo(a.geometryWkt);const cr=(a.crossedRuralProperties||[]).find(x=>x.code===cod);
+      return g?{type:'Feature',geometry:g,properties:{alertCode:a.alertCode,area_total:a.areaHa,detectedAt:a.detectedAt,publishedAt:a.publishedAt,status:a.statusName,area_car_mb:cr?cr.alertAreaInCar:null,year:+String(a.detectedAt||'').slice(0,4)||null,image_date:a.detectedAt,_fonte:'MapBiomas Alerta'}}:null}).filter(Boolean)}
+  catch(e){return null}
+}
+async function buscar(){
+  if(!S.uniao)return;
+  const bb=turf.bbox(S.uniao),uf=ufImovel(),min=parseFloat($('minHa').value)||0,anoMin=parseInt($('anoMin').value)||0;
+  $('bBuscar').disabled=true;status('st1','Consultando PRODES, IBAMA, ICMBio, FUNAI, INCRA e UCs…');
+  $('conf').innerHTML='<div class="empty">Analisando critérios…</div>';
+  // CAR status quando veio de arquivo
+  if(!S.car){const cod=normCar($('car').value||'');if(/^[A-Z]{2}-\d{7}-[0-9A-F]{32}$/.test(cod)){try{const r=await fetch(`${SICAR}?service=WFS&version=2.0.0&request=GetFeature&typeNames=sicar:sicar_imoveis_${cod.slice(0,2).toLowerCase()}&outputFormat=application/json&propertyName=cod_imovel,status_imovel,condicao,uf&cql_filter=${encodeURIComponent(`cod_imovel='${cod}'`)}`);const j=await r.json();if(j.features&&j.features[0])S.car=j.features[0].properties}catch(e){}}}
+  const bbC=[bb[0]-.001,bb[1]-.001,bb[2]+.001,bb[3]+.001];
+  const codCar=normCar($('car').value||''),carValido=/^[A-Z]{2}-\d{7}-[0-9A-F]{32}$/.test(codCar);
+  const [prodes,amzBioma,mbAlertas,arc]=await Promise.all([
+    Promise.all(PRODES.map(([l])=>qProdes(l,bb))),
+    qProdes('prodes-amazon-nb:yearly_deforestation_biome',bbC),
+    carValido?qMapBiomas(codCar):Promise.resolve(undefined),
+    (async()=>{const o={};for(const [k,pth] of Object.entries(ARC)){let r=null;for(let t=0;t<5&&r===null;t++){if(t){status('st1',`Servidor do IBAMA instável — nova tentativa (${t+1}/5)…`);await new Promise(z=>setTimeout(z,Math.min(2000*t,5000)))}r=await qArc(pth,bb)}o[k]=r}return o})()
+  ]);
+  const C=[],add=(nome,res,itens,nota)=>C.push({nome,res,itens:itens||[],nota:nota||''});
+  const prodesItens=(feats,bioma)=>sobrepor((feats||[]).filter(f=>{const a=anoDe(f.properties||{});return !a||a>=anoMin}),p=>{const a=anoDe(p);return{titulo:`Desmatamento - PRODES ${bioma.toUpperCase()} ${a||''}`,id:attr(p,['fid','uid','gid','id'])||'',data:dataDe(attr(p,['image_date','date','view_date'])),ano:a}}).filter(i=>i.ha>min);
+  const PB2={'PRODES Pantanal':1,'PRODES Caatinga':1,'PRODES Cerrado':1,'PRODES Amazônia Legal':1,'PRODES Pampa':1,'PRODES Mata Atlântica':1};
+  const nomesBioma={'PRODES Cerrado':'Cerrado','PRODES Amazônia Legal':'Amazônia Legal','PRODES Mata Atlântica':'Mata Atlântica','PRODES Caatinga':'Caatinga','PRODES Pantanal':'Pantanal','PRODES Pampa':'Pampa'};
+  const prodesRaw=[];
+  const resP={};PRODES.forEach(([l,nome],i)=>{const f=prodes[i];if(f)f.forEach(x=>{x.properties._fonte=nome;prodesRaw.push(x)});resP[nome]=f===null?null:prodesItens(f,nomesBioma[nome])});
+  const resProd=nome=>{const it=resP[nome];if(it===null)add('Desmatamento '+nome,'V',[],'Fonte indisponível no momento da consulta.');else add('Desmatamento '+nome,it.length?'NC':'C',it,`Polígonos a partir de ${anoMin}, sobreposição > ${fmt(min)} ha.`)};
+  // territórios
+  const crit=(nome,feats,fn,filtro)=>{if(feats===null){add(nome,'V',[],'Servidor da fonte indisponível no momento. Use "Refazer análise" para consultar de novo.');return[]}const it=sobrepor(feats,fn).filter(filtro||(()=>true));add(nome,it.length?'NC':'C',it);return it};
+  const quil=crit('Território Quilombola (INCRA)',arc.quil,p=>({titulo:`Território Quilombola - ${p.nm_comunid||''}`,id:p.cd_quilomb||p.objectid||'',data:'',extra:[p.fase,p.nm_municip&&(p.nm_municip+'/'+(p.cd_uf||''))].filter(Boolean).join(' · ')}));
+  resProd('PRODES Pantanal');resProd('PRODES Caatinga');resProd('PRODES Cerrado');resProd('PRODES Amazônia Legal');resProd('PRODES Pampa');
+  let mbItens=[];
+  if(mbAlertas===undefined)add('MapBiomas Alertas (a partir de 01/08/2023)','V',[],'Consulta feita pelo nº do CAR — imóvel carregado por arquivo sem CAR válido.');
+  else if(mbAlertas===null)add('MapBiomas Alertas (a partir de 01/08/2023)','V',[],'Servidor do MapBiomas indisponível no momento. Use "Refazer análise".');
+  else{
+    const todos=sobrepor(mbAlertas,p=>({titulo:`MapBiomas Alerta ${p.alertCode} — detectado em ${dataDe(p.detectedAt)}`,id:p.alertCode,data:dataDe(p.detectedAt),ano:p.year,recente:String(p.detectedAt||'')>='2023-08-01',extra:[p.status==='published'?'Publicado':p.status,p.publishedAt&&('publicado em '+dataDe(p.publishedAt)),p.area_car_mb!=null&&(`área no CAR segundo MapBiomas: ${fmt(p.area_car_mb,4)} ha`)].filter(Boolean).join(' · ')}));
+    mbItens=todos.filter(i=>i.recente&&i.ha>min);const antigos=todos.filter(i=>!i.recente);
+    add('MapBiomas Alertas (a partir de 01/08/2023)',mbItens.length?'NC':'C',mbItens,`Alertas detectados desde 01/08/2023 com sobreposição > ${fmt(min)} ha.`+(antigos.length?` Alertas anteriores (informativo): ${antigos.map(a=>a.id+' de '+a.data+' ('+fmt(a.ha)+' ha)').join('; ')}.`:''));
+    (mbAlertas||[]).forEach(f=>{if(intersecao(S.uniao,f))prodesRaw.push(f)});
+  }
+  // CAR status
+  if(S.car&&S.car.status_imovel){const st=S.car.status_imovel;add('CAR Status',(st==='SU'||st==='CA')?'NC':'C',[],`Situação no SICAR: ${STATUS_CAR[st]||st}${S.car.condicao?' · '+S.car.condicao:''}.`)}
+  else add('CAR Status','V',[],'Status não disponível (imóvel carregado por arquivo sem nº de CAR válido).');
+  // UCs (exceto APA)
+  const isAPAf=p=>/^APA/i.test(p.sigla||'')||/PROTE[ÇC][ÃA]O AMBIENTAL/i.test(p.nome||''),isAPAe=p=>/^APA$/i.test(p.categoria||'')||/PROTE[ÇC][ÃA]O AMBIENTAL/i.test(p.nome||'');
+  let ucIt=[],ucNota='',ucFalha=arc.ucf===null&&arc.uce===null;
+  const ucf=sobrepor(arc.ucf||[],p=>({titulo:`Unidade de Conservação Federal - ${p.nome||''}`,id:p.codigocnuc||'',extra:[p.sigla,p.administra].filter(Boolean).join(' · '),apa:isAPAf(p)}));
+  const uce=sobrepor(arc.uce||[],p=>({titulo:`Unidade de Conservação Estadual - ${p.nome||''}`,id:p.codigo||'',extra:[p.categoria,p.protecao,p.uf].filter(Boolean).join(' · '),apa:isAPAe(p)}));
+  ucIt=ucf.concat(uce).filter(i=>!i.apa);const apas=ucf.concat(uce).filter(i=>i.apa);
+  if(apas.length)ucNota=`Sobreposição com APA (permitida): ${apas.map(a=>a.titulo.split(' - ')[1]).join(', ')}.`;
+  if(ucFalha)add('Unidade de Conservação - Demais categorias','V',[],'Fonte indisponível no momento da consulta.');else add('Unidade de Conservação - Demais categorias',ucIt.length?'NC':'C',ucIt,ucNota);
+  resProd('PRODES Mata Atlântica');
+  const ibama=crit('Embargos IBAMA',arc.ibama,p=>({titulo:`Embargo IBAMA - TAD ${p.num_tad||''}${p.serie_tad?'-'+p.serie_tad:''}`,id:p.seq_tad||p.objectid||'',data:dataDe(p.dat_embargo),extra:[p.tipo_area,p.municipio&&(p.municipio+'/'+(p.uf||''))].filter(Boolean).join(' · ')}));
+  const estadual=(nome,sigla,url)=>{if(uf&&uf!==sigla)add(nome,'C',[],`Imóvel fora de ${sigla} — critério não se aplica.`);else add(nome,'V',[],`Fonte estadual sem consulta automática. Verificar em ${url}.`)};
+  estadual('Embargos SEMA MT','MT','monitoramento.sema.mt.gov.br');
+  const icm=crit('Embargos ICMBio',arc.icmbio,p=>({titulo:`Embargo ICMBio - AI ${p.numero_ai||''}${p.serie?'-'+p.serie:''}`,id:p.vw_pk||p.objectid||'',data:dataDe(p.data_auto),extra:[p.nome_uc,p.municipio&&(p.municipio+'/'+(p.uf||''))].filter(Boolean).join(' · ')}));
+  estadual('LDI - Lista de Desmatamento Ilegal (SEMAS PA)','PA','semas.pa.gov.br');
+  estadual('Embargo SEDAM RO','RO','sedam.ro.gov.br');
+  const ti=crit('Terra Indígena (FUNAI)',arc.ti,p=>({titulo:`Terra Indígena - ${p.terrai_nom||''}`,id:p.terrai_cod||'',extra:[p.etnia_nome,p.fase_ti].filter(Boolean).join(' · ')}));
+  // PRODES contíguo Amazônia bioma 2008+ (polígonos dentro do imóvel ou encostados até 50 m)
+  if(amzBioma===null)add('PRODES Contíguo Amazônia Bioma (2008-atual)','V',[],'Fonte indisponível no momento da consulta.');
+  else{
+    let buf=S.uniao;try{buf=turf.buffer(S.uniao,0.05,{units:'kilometers'})}catch(e){}
+    const aImovel=haDe(S.uniao),it=[];
+    amzBioma.filter(f=>{const a=anoDe(f.properties||{});return a&&a>=2008}).forEach(f=>{let toca=false;try{toca=turf.booleanIntersects(buf,f)}catch(e){}if(!toca)return;
+      const g=intersecao(S.uniao,f),ha=g?haDe(g):0,p=f.properties,a=anoDe(p);
+      it.push({titulo:`PRODES Amazônia (bioma) ${a} ${ha>0?'— dentro do imóvel':'— contíguo ao limite'}`,ha,pctCrit:haDe(f)?ha/haDe(f)*100:0,pctTerr:aImovel?ha/aImovel*100:0,id:attr(p,['fid','uid','id'])||'',data:dataDe(attr(p,['image_date','date'])),geom:g||f,orig:f,p})});
+    add('PRODES Contíguo Amazônia Bioma (2008-atual)',it.length?'NC':'C',it,'Polígonos PRODES Amazônia (bioma) desde 2008 dentro do imóvel ou a até 50 m do limite.');
+  }
+  const ass=crit('Assentamento (INCRA)',arc.assent,p=>({titulo:`Assentamento - ${p.nome_proje||''}`,id:p.cd_sipra||'',data:p.data_de_cr||'',extra:[p.descricao_,p.municipio&&(p.municipio+'/'+(p.uf||''))].filter(Boolean).join(' · ')}));
+  C.forEach(c=>c.itens.sort((a,b)=>(a.ano||0)-(b.ano||0)||b.ha-a.ha));
+  S.criterios=C;
+  // camadas no mapa
+  S.embargos=ibama.concat(icm);S.protegidas=quil.concat(ti,ucIt,ass);
+  gEmb.clearLayers();gProt.clearLayers();
+  S.embargos.forEach(e=>L.geoJSON(e.orig,{style:{color:'#b9741f',weight:2,dashArray:'5 4',fillOpacity:.3}}).bindPopup(e.titulo).addTo(gEmb));
+  S.protegidas.forEach(e=>L.geoJSON(e.orig,{style:{color:'#7b4bb7',weight:2,fillOpacity:.15}}).bindPopup(e.titulo).addTo(gProt));
+  // alertas para multitemporal
+  S._brutos=S.alertasArquivo?S.alertasArquivo.features.map(f=>{f.properties=f.properties||{};f.properties._fonte='Arquivo';return f}):prodesRaw;
+  processarAlertas(S._brutos);
+  renderConf();
+  const nc=C.filter(c=>c.res==='NC').length;
+  status('st1',`${nc?nc+' critério(s) NÃO CONFORME':'Todos os critérios consultados CONFORMES'} · ${S.alertas.length} alerta(s) PRODES no imóvel`);
+  $('bBuscar').disabled=false;
+}
+const RES={C:['CONFORME','c'],NC:['NÃO CONFORME','nc'],V:['VERIFICAR *','v']};
+function resultadoGeral(){return S.criterios.some(c=>c.res==='NC')?'NC':'C'}
+function renderConf(){
+  const g=resultadoGeral(),nc=S.criterios.filter(c=>c.res==='NC');
+  let h=`<div class="res"><span class="big ${g==='NC'?'nc':'c'}">${g==='NC'?'NÃO CONFORME':'CONFORME'}</span><div class="info"><b>CAR:</b> ${$('car').value||'—'}<br><b>Município/UF:</b> ${$('mun').value||'—'} · <b>Área:</b> ${fmt(haDe(S.uniao))} ha${S.car&&S.car.status_imovel?` · <b>Status CAR:</b> ${STATUS_CAR[S.car.status_imovel]||S.car.status_imovel}`:''}</div></div>`;
+  const nV=S.criterios.filter(c=>c.res==='V').length,haAl=S.alertas.reduce((t,a)=>t+a.ha,0),haEmb=S.embargos.reduce((t,e)=>t+e.ha,0);
+  h+=`<div class="kpis"><div><b>${S.criterios.length}</b><span>critérios avaliados</span></div><div><b style="color:${nc.length?'var(--red)':'var(--ok)'}">${nc.length}</b><span>não conformes</span></div><div><b>${nV}</b><span>a verificar</span></div><div><b>${fmt(haAl)} ha</b><span>alertas de desmatamento no imóvel</span></div><div><b>${fmt(haEmb)} ha</b><span>embargados no imóvel</span></div></div>`;
+  h+=`<div class="scroll"><table><thead><tr><th>Critério</th><th>Resultado</th></tr></thead><tbody>`+S.criterios.map(c=>`<tr><td>${c.nome}${c.nota?`<div style="font-size:12px;color:var(--mut)">${c.nota}</div>`:''}</td><td><span class="tag ${RES[c.res][1]}">${RES[c.res][0]}</span></td></tr>`).join('')+'</tbody></table></div>';
+  if(nc.length){h+='<h3>Detalhamento das não conformidades</h3>'+nc.map(c=>c.itens.map(i=>`<div class="det"><b>${i.titulo}</b><span>Área de sobreposição: <b style="display:inline;font:inherit;color:var(--ink)">${fmt(i.ha,4)} ha</b> · Sobreposição critério: ${fmt(i.pctCrit)}% · Sobreposição território: ${fmt(i.pctTerr)}%${i.id?` · ID ${i.id}`:''}${i.data?` · Data: ${i.data}`:''}${i.extra?`<br>${i.extra}`:''}</span></div>`).join('')||`<div class="det"><b>${c.nome}</b><span>${c.nota}</span></div>`).join('')}
+  if(S.criterios.some(c=>c.res==='V'))h+='<p class="note">* Critério sem consulta automática ou fonte indisponível no momento — verificar na fonte oficial.</p>';
+  h+=`<div class="cta"><div><b>${g==='NC'?'Precisa resolver essas não conformidades?':'Quer o laudo técnico completo?'}</b><p>${g==='NC'?'Laudo de defesa ou contestação do alerta com análise multitemporal, regularização do CAR, PRA e DAI. Fale direto com o técnico.':'Laudo assinado com análise multitemporal, para banco, frigorífico ou compra e venda do imóvel.'}</p></div><a class="wa" target="_blank" rel="noopener" href="${waLink(msgLaudo())}">${WA_SVG}Quero o laudo completo</a></div>`;
+  $('conf').innerHTML=h;
+  const fab=document.getElementById('waFab');if(fab)fab.href=waLink(msgLaudo());
+}
+function attr(p,keys){for(const k of keys){if(p[k]!=null&&p[k]!=='')return p[k];const K=Object.keys(p).find(x=>x.toLowerCase()===k);if(K&&p[K]!=null)return p[K]}return null}
+function processarAlertas(brutos){
+  const min=parseFloat($('minHa').value)||0,anoMin=parseInt($('anoMin').value)||0;
+  S.alertas=[];gAlerta.clearLayers();
+  brutos.forEach((f,i)=>{
+    const p=f.properties||{};
+    const ano=anoDe(p);
+    if(ano&&ano<anoMin)return;
+    const g=intersecao(S.uniao,f);if(!g)return;
+    const ha=haDe(g);if(ha<=min)return;
+    S.alertas.push({id:S.alertas.length+1,fonte:p._fonte,ano,data:attr(p,['image_date','data','date','view_date','dataimagem']),
+      cod:attr(p,['uuid','codealerta','alertcode','id','fid'])||'',ha,haTotal:haDe(f),geom:g,orig:f});
+  });
+  S.alertas.sort((a,b)=>(a.ano||0)-(b.ano||0)||b.ha-a.ha);
+  S.alertas.forEach((a,i)=>{a.id=i+1;
+    L.geoJSON(a.geom,{style:{color:'#d6402f',weight:2,fillOpacity:.35}}).bindTooltip(`A${a.id}`,{permanent:true,direction:'center',className:''}).on('click',()=>selecionar(a.id)).addTo(gAlerta)});
+  renderTabela();
+  const sel=$('alvo');sel.innerHTML='<option value="imovel">Imóvel inteiro</option>'+S.alertas.map(a=>`<option value="${a.id}">Alerta A${a.id} — ${a.ano||'s/ ano'} — ${fmt(a.ha)} ha</option>`).join('');
+  $('bPdf').disabled=!S.uniao||!S.criterios.length;$('bShp').disabled=$('bKml').disabled=!S.uniao;
+}
+function renderTabela(){
+  let h='';
+  if(S.alertas.length){
+    h+=`<table class="stack"><thead><tr><th>#</th><th>Fonte</th><th>Ano</th><th>Data imagem</th><th>Área no imóvel (ha)</th><th>Área total (ha)</th></tr></thead><tbody>`+
+    S.alertas.map(a=>`<tr class="click${S.sel==a.id?' sel':''}" data-id="${a.id}"><td><span class="pill r">A${a.id}</span></td><td>${a.fonte||''}</td><td>${a.ano||'—'}</td><td>${fdate(a.data)}</td><td class="n">${fmt(a.ha)}</td><td class="n">${fmt(a.haTotal)}</td></tr>`).join('')+'</tbody></table>';
+  }else h+='<div class="empty">Nenhum alerta sobreposto acima do filtro.</div>';
+  $('tabs').innerHTML=h;
+  $('tabs').querySelectorAll('tr.click').forEach(tr=>tr.addEventListener('click',()=>selecionar(+tr.dataset.id)));
+}
+function selecionar(id){
+  S.sel=id;const a=S.alertas.find(x=>x.id==id);if(!a)return;
+  map.fitBounds(L.geoJSON(a.geom).getBounds(),{padding:[60,60],maxZoom:16});
+  $('alvo').value=id;renderTabela();
+}
+
+/* ---------- cenas de satélite ---------- */
+function intervalo(ano,todo){
+  if(ano===2008)return[`2008-01-01T00:00:00Z`,`2008-07-22T23:59:59Z`];
+  return $('periodo').value==='seco'&&!todo?[`${ano}-05-01T00:00:00Z`,`${ano}-09-30T23:59:59Z`]:[`${ano}-01-01T00:00:00Z`,`${ano}-12-31T23:59:59Z`];
+}
+async function buscarCenas(ano,pt,todo){
+  const s2=ano>=2017&&$('sensor').value==='s2';
+  const col=s2?'sentinel-2-l2a':'landsat-c2-l2';
+  const base=[{op:'s_intersects',args:[{property:'geometry'},{type:'Point',coordinates:pt}]},
+    {op:'anyinteracts',args:[{property:'datetime'},{interval:intervalo(ano,todo)}]},
+    {op:'<=',args:[{property:'eo:cloud_cover'},60]}];
+  const tentar=async extra=>{
+    const body={collections:[col],limit:20,'filter-lang':'cql2-json',filter:{op:'and',args:base.concat(extra||[])},
+      sortby:[{field:'eo:cloud_cover',direction:'asc'}],fields:{include:['id','properties.datetime','properties.eo:cloud_cover','properties.platform'],exclude:['assets','links','geometry']}};
+    const r=await fetch(PC+'/stac/v1/search',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error('Planetary Computer '+r.status);
+    return (await r.json()).features||[];
+  };
+  let fs=[];
+  if(!s2&&ano>=2003){fs=await tentar([{op:'in',args:[{property:'platform'},['landsat-4','landsat-5','landsat-8','landsat-9']]}])}
+  if(!fs.length)fs=await tentar();
+  return fs.map(f=>({col,id:f.id,data:f.properties.datetime,nuvem:f.properties['eo:cloud_cover'],plat:f.properties.platform||'',s2}));
+}
+function paramsTile(c){
+  const fc=$('comp').value==='fc';
+  if(c.s2)return fc?'assets=B11&assets=B08&assets=B04&nodata=0&rescale=1000,5500':'assets=visual&nodata=0';
+  return fc?'assets=swir16&assets=nir08&assets=red&nodata=0&rescale=7500,22000':'assets=red&assets=green&assets=blue&nodata=0&rescale=7500,14000';
+}
+const tileUrl=(c,z,x,y)=>`${PC}/data/v1/item/tiles/WebMercatorQuad/${z}/${x}/${y}@1x.png?collection=${c.col}&item=${encodeURIComponent(c.id)}&${paramsTile(c)}`;
+const nomeSat=c=>c.s2?'Sentinel-2':({'landsat-4':'Landsat 4','landsat-5':'Landsat 5','landsat-7':'Landsat 7','landsat-8':'Landsat 8','landsat-9':'Landsat 9'}[c.plat]||'Landsat');
+
+/* projeção Web Mercator */
+const mx=(lon,z)=>(lon+180)/360*256*2**z;
+const my=(lat,z)=>(1-Math.asinh(Math.tan(lat*Math.PI/180))/Math.PI)/2*256*2**z;
+function janela(bb,W,H,maxZ){
+  const [w,s,e,n]=bb;let z=maxZ;
+  for(;z>4;z--){if(mx(e,z)-mx(w,z)<=W*1.0&&my(s,z)-my(n,z)<=H*1.0)break}
+  const x0=mx(w,z),y0=my(n,z),bw=mx(e,z)-x0,bh=my(s,z)-y0;
+  const k=Math.min(W/bw,H/bh);
+  return{z,k,ox:(W-bw*k)/2-x0*k,oy:(H-bh*k)/2-y0*k};
+}
+function carregaImg(u){return new Promise(res=>{const im=new Image();im.crossOrigin='anonymous';im.onload=()=>res(im);im.onerror=()=>res(null);im.src=u})}
+async function desenharBase(ctx,W,H,jan,urlFn){
+  const {z,k,ox,oy}=jan;
+  const tx0=Math.floor(-ox/k/256),ty0=Math.floor(-oy/k/256),tx1=Math.floor((W-ox)/k/256),ty1=Math.floor((H-oy)/k/256);
+  const jobs=[];
+  for(let x=tx0;x<=tx1;x++)for(let y=ty0;y<=ty1;y++)jobs.push(carregaImg(urlFn(z,x,y)).then(im=>{if(im)ctx.drawImage(im,x*256*k+ox,y*256*k+oy,256*k+.5,256*k+.5)}));
+  await Promise.all(jobs);
+}
+function caminho(ctx,geom,jan){
+  const {z,k,ox,oy}=jan;
+  const polys=geom.type==='Polygon'?[geom.coordinates]:geom.type==='MultiPolygon'?geom.coordinates:[];
+  ctx.beginPath();
+  polys.forEach(p=>p.forEach(r=>r.forEach((c,i)=>{const X=mx(c[0],z)*k+ox,Y=my(c[1],z)*k+oy;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)})));
+}
+function sobreposicoes(ctx,jan,alvo){
+  ctx.lineJoin='round';
+  S.protegidas.forEach(e=>{caminho(ctx,e.orig.geometry,jan);ctx.strokeStyle='#c39bff';ctx.lineWidth=2;ctx.stroke()});
+  S.embargos.forEach(e=>{caminho(ctx,e.orig.geometry,jan);ctx.setLineDash([6,4]);ctx.strokeStyle='#ff9d2e';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([])});
+  S.alertas.forEach(a=>{caminho(ctx,a.geom.geometry,jan);ctx.strokeStyle='#ff3b30';ctx.lineWidth=a.id==alvo?3:1.8;ctx.stroke()});
+  S.imovel.features.forEach(f=>{caminho(ctx,f.geometry,jan);ctx.strokeStyle='#000a';ctx.lineWidth=5;ctx.stroke();ctx.strokeStyle='#ffd400';ctx.lineWidth=2.6;ctx.stroke()});
+  ctx.font='600 13px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  S.alertas.forEach(a=>{const c=turf.centerOfMass(a.geom).geometry.coordinates;const X=mx(c[0],jan.z)*jan.k+jan.ox,Y=my(c[1],jan.z)*jan.k+jan.oy;
+    ctx.lineWidth=3;ctx.strokeStyle='#000c';ctx.strokeText('A'+a.id,X,Y);ctx.fillStyle='#fff';ctx.fillText('A'+a.id,X,Y)});
+}
+function rodape(ctx,W,H,jan,lat,txt){
+  // escala
+  const mpp=156543.03392*Math.cos(lat*Math.PI/180)/2**jan.z/jan.k;
+  const alvo=W*0.25*mpp,p=10**Math.floor(Math.log10(alvo)),m=[1,2,5].map(v=>v*p).filter(v=>v<=alvo).pop()||p;
+  const px=m/mpp,x=W-px-14,y=H-16;
+  ctx.fillStyle='#000a';ctx.fillRect(x-6,y-18,px+12,26);
+  ctx.fillStyle='#fff';ctx.fillRect(x,y,px,4);
+  ctx.font='600 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText(m>=1000?(m/1000)+' km':m+' m',x+px/2,y-4);
+  // norte
+  ctx.beginPath();ctx.moveTo(W-22,14);ctx.lineTo(W-30,34);ctx.lineTo(W-22,29);ctx.lineTo(W-14,34);ctx.closePath();
+  ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#000a';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillText('N',W-22,46);
+  if(txt){ctx.font='700 13px Inter,sans-serif';const tw=ctx.measureText(txt).width;ctx.fillStyle='#000b';ctx.fillRect(8,8,tw+16,24);ctx.fillStyle='#fff';ctx.textAlign='left';ctx.fillText(txt,16,25)}
+}
+function bboxAlvo(){
+  const v=$('alvo').value;
+  const g=v==='imovel'?S.uniao:S.alertas.find(a=>a.id==v).geom;
+  const bb=turf.bbox(g),dx=(bb[2]-bb[0])*0.18+0.002,dy=(bb[3]-bb[1])*0.18+0.002;
+  return{bb:[bb[0]-dx,bb[1]-dy,bb[2]+dx,bb[3]+dy],alvo:v==='imovel'?null:+v};
+}
+async function renderCena(cv,c,W){
+  const H=W;cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');ctx.fillStyle='#d9d5c8';ctx.fillRect(0,0,W,H);
+  const {bb,alvo}=bboxAlvo();const jan=janela(bb,W,H,c&&c.s2?16:15);
+  if(c)await desenharBase(ctx,W,H,jan,(z,x,y)=>tileUrl(c,z,x,y));
+  sobreposicoes(ctx,jan,alvo);
+  rodape(ctx,W,H,jan,(bb[1]+bb[3])/2,c?`${nomeSat(c)} · ${fdate(c.data)}`:'Sem cena');
+  if(!TEC){ctx.save();ctx.font='700 30px Inter,sans-serif';ctx.fillStyle='rgba(255,255,255,.35)';ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=1;ctx.rotate(-0.42);
+    for(let yy=-W;yy<W*1.6;yy+=150)for(let xx=-W;xx<W*1.6;xx+=330){ctx.fillText('R.A AgroTec · prévia',xx,yy);ctx.strokeText('R.A AgroTec · prévia',xx,yy)}ctx.restore()}
+}
+
+$('bSug').addEventListener('click',()=>{
+  const v=$('alvo').value,a=S.alertas.find(x=>x.id==v);
+  const atual=new Date().getFullYear()-(new Date().getMonth()<9?1:0);
+  const anos=new Set([2000,2005,2008]);
+  if(a&&a.ano){[a.ano-3,a.ano-1,a.ano,a.ano+1].forEach(y=>{if(y>1984&&y<=atual)anos.add(y)})}else{[2012,2016,2020].forEach(y=>anos.add(y))}
+  anos.add(atual);
+  $('anos').value=[...anos].sort((x,y)=>x-y).join(', ');
+});
+
+$('bGerar').addEventListener('click',gerar);
+['comp','alvo'].forEach(id=>$(id).addEventListener('change',()=>{if(S.cenas.length)redesenharTudo()}));
+['periodo','sensor'].forEach(id=>$(id).addEventListener('change',()=>{if(S.cenas.length)gerar()}));
+
+/* ---------- escolha da melhor cena: nuvem e falhas medidas DENTRO da área analisada ---------- */
+const AMOSTRA=64;
+function mascaraAlvo(bb,gx){ // pixels da amostra (grade lon/lat do bbox) que caem dentro do imóvel/alerta
+  const v=$('alvo').value,g=gx||(v==='imovel'?S.uniao:S.alertas.find(a=>a.id==v).geom),m=new Uint8Array(AMOSTRA*AMOSTRA);let n=0;
+  for(let y=0;y<AMOSTRA;y++)for(let x=0;x<AMOSTRA;x++){const lon=bb[0]+(x+.5)/AMOSTRA*(bb[2]-bb[0]),lat=bb[3]-(y+.5)/AMOSTRA*(bb[3]-bb[1]);
+    let d=false;try{d=turf.booleanPointInPolygon([lon,lat],g)}catch(e){}if(d){m[y*AMOSTRA+x]=1;n++}}
+  if(n<20)m.fill(1);return m;
+}
+async function avaliarCena(c,bb,mask){
+  const p=c.s2?'assets=B02&rescale=0,10000':'assets=blue&rescale=7273,43636'; // azul em reflectância ~0–1
+  const u=`${PC}/data/v1/item/bbox/${bb.map(v=>v.toFixed(6)).join(',')}/${AMOSTRA}x${AMOSTRA}.png?collection=${c.col}&item=${encodeURIComponent(c.id)}&${p}&nodata=0`;
+  const im=await carregaImg(u);if(!im)return{nuvem:100,falha:100,score:999};
+  const cv=document.createElement('canvas');cv.width=cv.height=AMOSTRA;const x=cv.getContext('2d');x.drawImage(im,0,0,AMOSTRA,AMOSTRA);
+  let d;try{d=x.getImageData(0,0,AMOSTRA,AMOSTRA).data}catch(e){return{nuvem:0,falha:0,score:0}}
+  const off=c.s2&&String(c.data)>='2022-01-25'?0.1:0; // Sentinel-2 com processamento ≥ 04.00 tem +0,1 de deslocamento
+  let tot=0,nv=0,fl=0;const vals=[];
+  for(let i=0;i<AMOSTRA*AMOSTRA;i++){if(!mask[i])continue;tot++;const r=d[i*4],a=d[i*4+3];
+    if(a<128||r===0){fl++;continue}const refl=r/255-off;vals.push(refl);if(refl>0.10)nv++}
+  vals.sort((a,b)=>a-b);const med=vals.length?vals[vals.length>>1]:0;
+  const nuvem=tot?nv/tot*100:0,falha=tot?fl/tot*100:0,nevoa=Math.max(0,(med-0.05))*300;
+  return{nuvem,falha,nevoa,score:nuvem+falha*2+nevoa};
+}
+async function gerar(){
+  if(!S.uniao)return;
+  const anos=$('anos').value.split(/[,; ]+/).map(Number).filter(y=>y>=1984&&y<=2100);
+  if(!anos.length){status('st2','Informe ao menos um ano.',true);return}
+  $('bGerar').disabled=true;
+  const c=turf.centerOfMass(S.uniao).geometry.coordinates;
+  const {bb}=bboxAlvo();const pt=[(bb[0]+bb[2])/2,(bb[1]+bb[3])/2];
+  const gA=$('alvo').value==='imovel'?S.uniao:S.alertas.find(a=>a.id==$('alvo').value).geom,bbA=turf.bbox(gA),mask=mascaraAlvo(bbA);
+  status('st2','Buscando e avaliando cenas: nuvem e falhas medidas dentro do imóvel…');
+  S.cenas=anos.map(ano=>({ano,opcoes:[],idx:0}));
+  $('grid').innerHTML=S.cenas.map((s,i)=>`<div class="scene"><canvas id="cv${i}"></canvas><div class="meta"><b>${s.ano}</b><select id="op${i}" aria-label="Cena de ${s.ano}"><option>Buscando…</option></select></div></div>`).join('');
+  let feitos=0;const tot=S.cenas.length;
+  await Promise.all(S.cenas.map(async(s,i)=>{
+    try{s.opcoes=await buscarCenas(s.ano,pt)}catch(e){s.opcoes=[];s.erro=e.message}
+    // mede nuvem e falhas no imóvel nas melhores candidatas e reordena
+    const cand=s.opcoes.slice(0,8);
+    for(const o of cand){const a=await avaliarCena(o,bbA,mask);Object.assign(o,{nLoc:a.nuvem,fLoc:a.falha,nevL:a.nevoa||0,score:a.score});if(a.score<1)break}
+    s.opcoes.sort((a,b)=>(a.score??500)-(b.score??500)||(a.nuvem||0)-(b.nuvem||0));
+    if(s.opcoes[0]&&s.opcoes[0].score>=8&&$('periodo').value==='seco'&&s.ano!==2008){ // procura no ano inteiro
+      try{const ids=new Set(s.opcoes.map(o=>o.id));const extra=(await buscarCenas(s.ano,pt,true)).filter(o=>!ids.has(o.id)).slice(0,8);
+        for(const o of extra){const a=await avaliarCena(o,bbA,mask);Object.assign(o,{nLoc:a.nuvem,fLoc:a.falha,nevL:a.nevoa||0,score:a.score});if(a.score<1)break}
+        s.opcoes=s.opcoes.concat(extra).sort((a,b)=>(a.score??500)-(b.score??500)||(a.nuvem||0)-(b.nuvem||0))}catch(e){}
+    }
+    const sel=$('op'+i);
+    const rot=o=>o.score==null?`nuvem na cena ${fmt(o.nuvem||0,0)}% · não avaliada no imóvel`:(o.score<3?'limpa no imóvel':`nuvem/névoa no imóvel ${fmt(Math.min(100,o.nLoc+o.nevL),0)}%${o.fLoc>=0.5?` · falhas ${fmt(o.fLoc,0)}%`:''}`);
+    sel.innerHTML=s.opcoes.length?s.opcoes.map((o,j)=>`<option value="${j}">${fdate(o.data)} · ${nomeSat(o)} · ${rot(o)}</option>`).join(''):`<option>${s.erro?'Erro: '+s.erro:'Nenhuma cena encontrada'}</option>`;
+    sel.addEventListener('change',async()=>{s.idx=+sel.value;await renderCena($('cv'+i),s.opcoes[s.idx],640);atualizarComparador()});
+    await renderCena($('cv'+i),s.opcoes[0],640);
+    $('pg').style.width=(++feitos/tot*100)+'%';
+  }));
+  const ruins=S.cenas.filter(c=>c.opcoes[0]&&c.opcoes[0].score>=8).map(c=>c.ano);
+  const l7=S.cenas.filter(c=>c.opcoes[0]&&c.opcoes[0].plat==='landsat-7'&&c.ano>=2003).map(c=>c.ano),outros=ruins.filter(a=>!l7.includes(a));
+  status('st2',`${tot} cena(s) prontas — escolhida a imagem mais limpa de cada ano dentro do imóvel.`+(l7.length?` Em ${l7.join(', ')} só havia Landsat 7, que tem faixas sem dados desde 2003 (falha do satélite); foi escolhida a data com menos falhas.`:'')+(outros.length?` Em ${outros.join(', ')} nenhuma cena do ano ficou totalmente limpa sobre o imóvel — veja as outras datas no seletor.`:''));
+  $('bGerar').disabled=false;$('bPng').disabled=false;$('bPdf').disabled=false;
+  montarComparador();
+}
+async function redesenharTudo(){
+  status('st2','Redesenhando…');
+  await Promise.all(S.cenas.map((s,i)=>renderCena($('cv'+i),s.opcoes[s.idx],640)));
+  atualizarComparador();status('st2','Pronto.');
+}
+
+/* ---------- comparador ---------- */
+function montarComparador(){
+  const op=S.cenas.map((s,i)=>`<option value="${i}">${s.ano}</option>`).join('');
+  $('cA').innerHTML=op;$('cB').innerHTML=op;$('cB').value=S.cenas.length-1;atualizarComparador();
+}
+function atualizarComparador(){
+  if(!S.cenas.length)return;
+  const a=+$('cA').value,b=+$('cB').value;
+  [[a,'cvA','lbA'],[b,'cvB','lbB']].forEach(([i,cv,lb])=>{const src=$('cv'+i);if(!src)return;const d=$(cv);d.width=src.width;d.height=src.height;d.getContext('2d').drawImage(src,0,0);$(lb).textContent=S.cenas[i].ano});
+  swipe();
+}
+function swipe(){const v=$('sw').value;$('cvB').style.clipPath=`inset(0 0 0 ${v}%)`;$('bar').style.left=`calc(${v}% - 1px)`}
+$('sw').addEventListener('input',swipe);
+['cA','cB'].forEach(id=>$(id).addEventListener('change',atualizarComparador));
+$('cmp').addEventListener('pointermove',e=>{if(e.buttons!==1&&e.pointerType==='mouse')return;const r=$('cmp').getBoundingClientRect();$('sw').value=Math.max(0,Math.min(100,(e.clientX-r.left)/r.width*100));swipe()});
+
+/* ---------- exportação ---------- */
+function baixar(blob,nome){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}
+const slug=()=>($('nome').value||'imovel').normalize('NFD').replace(/[^\w]+/g,'_').replace(/_+$/,'');
+
+$('bPng').addEventListener('click',()=>{
+  const n=S.cenas.length,cols=Math.min(4,n),rows=Math.ceil(n/cols),T=480,pad=10;
+  const cv=document.createElement('canvas');cv.width=cols*(T+pad)+pad;cv.height=rows*(T+pad)+pad+40;
+  const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#17231d';ctx.font='700 20px Manrope,sans-serif';ctx.fillText(`R.A AgroTec · ${$('nome').value||'Imóvel'} — análise multitemporal`,pad,28);
+  S.cenas.forEach((s,i)=>ctx.drawImage($('cv'+i),pad+(i%cols)*(T+pad),40+pad+Math.floor(i/cols)*(T+pad),T,T));
+  cv.toBlob(b=>baixar(b,`multitemporal_${slug()}.png`),'image/png');
+});
+
+$('bPdf').addEventListener('click',async()=>{
+  try{
+  $('bPdf').disabled=true;status('st3','Montando PDF…');
+  const {jsPDF}=window.jspdf;const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const PW=297,PH=210,M=12;
+  const cab=(t)=>{doc.addImage(LOGO,'PNG',M,1.5,13.5,13.2);doc.setFillColor(183,133,79);doc.rect(0,16,PW,1.2,'F');doc.setTextColor(28,27,25);doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text(t,M+17,10.5);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(102,98,90);doc.text(`${$('nome').value||'Imóvel'}  ·  CAR ${$('car').value||'—'}  ·  ${$('mun').value||''}`,M,21.5);doc.setTextColor(23,35,29)};
+  const pe=(p)=>{doc.setFillColor(183,133,79);doc.rect(0,PH-1.2,PW,1.2,'F');doc.setFontSize(7.5);doc.setTextColor(93,107,99);
+    doc.text(doc.splitTextToSize('Fontes: PRODES (INPE/TerraBrasilis); MapBiomas Alerta; SICAR; IBAMA; ICMBio; FUNAI; INCRA; CNUC/SFB; Landsat e Sentinel-2 (Planetary Computer); CBERS (INPE/BDC).',PW-2*M),M,PH-9);
+    doc.text(`R.A AgroTec Soluções Rurais · WhatsApp (62) 99415-5001 · Triagem automática: requer conferência nas fontes oficiais e avaliação técnica · p. ${p}`,M,PH-4.5);doc.setTextColor(23,35,29)};
+  let pg=1;const novaPag=t=>{if(pg>1)doc.addPage();cab(t)};const fim=()=>{pe(pg);pg++};
+  const serial=(crypto.randomUUID?crypto.randomUUID():String(Date.now()));
+  const linhaSerial=()=>{doc.setFontSize(7.5);doc.setTextColor(102,98,90);doc.text(`Serial: ${serial} · Emitido em ${new Date().toLocaleString('pt-BR')}`,PW-M,21.5,{align:'right'});doc.setTextColor(28,27,25)};
+  // ---- imagem do imóvel (usada na capa e no mapa) ----
+  const ov=document.createElement('canvas');ov.width=900;ov.height=900;
+  const ctx=ov.getContext('2d');ctx.fillStyle='#d9d5c8';ctx.fillRect(0,0,900,900);
+  const bb0=turf.bbox(S.uniao),dx=(bb0[2]-bb0[0])*.12+.002,dy=(bb0[3]-bb0[1])*.12+.002,bb=[bb0[0]-dx,bb0[1]-dy,bb0[2]+dx,bb0[3]+dy];
+  const jan=janela(bb,900,900,16);
+  let rec=[];
+  try{rec=await buscarCenasRecentes([(bb[0]+bb[2])/2,(bb[1]+bb[3])/2]);
+    const bbI=turf.bbox(S.uniao),mI=mascaraAlvo(bbI,S.uniao);
+    for(const it of rec){const a=await avaliarCena({col:'sentinel-2-l2a',id:it.id,s2:true,data:it.properties.datetime},bbI,mI);it._sc=a.score}
+    rec.sort((a,b)=>a._sc-b._sc||String(b.properties.datetime).localeCompare(a.properties.datetime));
+  }catch(e){}
+  for(const it of rec.slice(0,4).reverse())await desenharBase(ctx,900,900,jan,(z,x,y)=>`${PC}/data/v1/item/tiles/WebMercatorQuad/${z}/${x}/${y}@1x.png?collection=sentinel-2-l2a&item=${encodeURIComponent(it.id)}&assets=visual&nodata=0`);
+  const base=document.createElement('canvas');base.width=900;base.height=900;base.getContext('2d').drawImage(ov,0,0);
+  sobreposicoes(ctx,jan,null);rodape(ctx,900,900,jan,(bb[1]+bb[3])/2,rec[0]?`Sentinel-2 · ${fdate(rec[0].properties.datetime)}`:'');
+  const imgMapa=ov.toDataURL('image/jpeg',.9);
+  // ---- capa ----
+  {
+    const CW=643,CH=900,cv=document.createElement('canvas');cv.width=CW;cv.height=CH;const c2=cv.getContext('2d');c2.fillStyle='#2a2620';c2.fillRect(0,0,CW,CH);
+    const bx=turf.bbox(S.uniao),px=(bx[2]-bx[0])*.10+.002,py=(bx[3]-bx[1])*.10+.002,janC=janela([bx[0]-px,bx[1]-py,bx[2]+px,bx[3]+py],CW,CH,16);
+    for(const it of rec.slice(0,4).reverse())await desenharBase(c2,CW,CH,janC,(z,x,y)=>`${PC}/data/v1/item/tiles/WebMercatorQuad/${z}/${x}/${y}@1x.png?collection=sentinel-2-l2a&item=${encodeURIComponent(it.id)}&assets=visual&nodata=0`);
+    S.imovel.features.forEach(f=>{caminho(c2,f.geometry,janC);c2.strokeStyle='#000a';c2.lineWidth=6;c2.stroke();c2.strokeStyle='#ffd400';c2.lineWidth=3.2;c2.stroke()});
+    doc.setFillColor(22,23,26);doc.rect(0,0,PW,PH,'F');
+    const iw=150;doc.addImage(cv.toDataURL('image/jpeg',.9),'JPEG',PW-iw,0,iw,PH);
+    doc.setFillColor(183,133,79);doc.rect(PW-iw-1.6,0,1.6,PH,'F');
+    doc.setFillColor(255,255,255);doc.roundedRect(M,14,22,21.5,2,2,'F');doc.addImage(LOGO,'PNG',M+1,14.5,20,19.6);
+    doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text('R.A AgroTec',M+27,23);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(231,184,119);doc.text('Soluções Rurais',M+27,28.5);
+    const tw=PW-iw-2*M;
+    doc.setTextColor(231,184,119);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('RELATÓRIO TÉCNICO',M,62);
+    doc.setTextColor(255);doc.setFontSize(24);const tl=doc.splitTextToSize('Diagnóstico socioambiental do imóvel rural',tw);doc.text(tl,M,74,{lineHeightFactor:1.15});
+    let yy=74+tl.length*10+10;doc.setFontSize(9.5);
+    [['Imóvel',$('nome').value||'—'],['CAR',$('car').value||'—'],['Município/UF',$('mun').value||'—'],['Área',fmt(haDe(S.uniao))+' ha'],['Emissão',new Date().toLocaleDateString('pt-BR')]].forEach(([k,v])=>{
+      doc.setFont('helvetica','normal');doc.setTextColor(190,182,168);doc.text(k,M,yy);doc.setTextColor(255);doc.setFont('helvetica','bold');
+      const l=doc.splitTextToSize(String(v),tw-30);doc.text(l,M+30,yy);yy+=5+4.6*Math.max(1,l.length)});
+    const g0=resultadoGeral();yy+=6;
+    if(g0==='NC')doc.setFillColor(192,57,43);else doc.setFillColor(46,125,79);
+    doc.roundedRect(M,yy,tw,15,2.5,2.5,'F');doc.setTextColor(255);doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('Resultado geral da análise',M+5,yy+6);
+    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(g0==='NC'?'NÃO CONFORME':'CONFORME',M+5,yy+12);
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(231,184,119);doc.text('Laudo técnico e regularização: WhatsApp (62) 99415-5001',M,PH-24);
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(170,162,148);
+    doc.text(doc.splitTextToSize(`Imagem: Sentinel-2 (Copernicus/ESA)${rec[0]?' de '+fdate(rec[0].properties.datetime):''}. Triagem automática a partir de bases públicas oficiais — requer conferência nas fontes e avaliação técnica.`,tw),M,PH-14);
+    doc.setTextColor(28,27,25);pg++;
+  }
+  // ---- página 1: extrato simplificado ----
+  novaPag('Extrato simplificado — conformidade socioambiental');linhaSerial();
+  const g=resultadoGeral();
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Informações da análise',M,30);
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);
+  [['Imóvel',$('nome').value||'—'],['CAR',$('car').value||'—'],['Município/UF',$('mun').value||'—'],['Área do imóvel',fmt(haDe(S.uniao))+' ha'],['Status do CAR',S.car&&S.car.status_imovel?(STATUS_CAR[S.car.status_imovel]||S.car.status_imovel):'—']]
+    .forEach(([k,v],i)=>{doc.setTextColor(102,98,90);doc.text(k,M,36+i*5.5);doc.setTextColor(28,27,25);doc.text(String(v),M+32,36+i*5.5,{maxWidth:140})});
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Resultado geral da análise',PW-M-80,30);
+  if(g==='NC')doc.setFillColor(192,57,43);else doc.setFillColor(46,125,79);
+  doc.roundedRect(PW-M-80,33,80,16,3,3,'F');doc.setTextColor(255);doc.setFontSize(16);doc.text(g==='NC'?'NÃO CONFORME':'CONFORME',PW-M-40,43.5,{align:'center'});doc.setTextColor(28,27,25);
+  let y=68;doc.setFontSize(10);doc.setFont('helvetica','bold');doc.text('Critérios e resultados da análise',M,y-4);
+  const colR=PW-M-34,rowH=6.1;
+  doc.setFontSize(8.5);doc.setTextColor(102,98,90);doc.text('Critério',M+2,y);doc.text('Resultado',colR+17,y,{align:'center'});doc.setTextColor(28,27,25);y+=2;
+  S.criterios.forEach((c,i)=>{
+    if(i%2===0){doc.setFillColor(246,243,236);doc.rect(M,y,PW-2*M,rowH,'F')}
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text(c.nome,M+2,y+4.2);
+    const [t]=RES[c.res],cor=c.res==='NC'?[192,57,43]:c.res==='C'?[46,125,79]:[150,115,40];
+    doc.setFont('helvetica','bold');doc.setTextColor(...cor);doc.text(t,colR+17,y+4.2,{align:'center'});doc.setTextColor(28,27,25);
+    y+=rowH;
+  });
+  if(S.criterios.some(c=>c.res==='V')){doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(102,98,90);doc.text('* Critério sem consulta automática ou fonte indisponível no momento da consulta — verificar na fonte oficial.',M,y+4);doc.setTextColor(28,27,25)}
+  fim();
+  // ---- detalhamento ----
+  const nc=S.criterios.filter(c=>c.res==='NC'||c.res==='V');
+  if(nc.length){
+    novaPag('Detalhamento das não conformidades e ressalvas');linhaSerial();y=30;
+    const quebra=h=>{if(y+h>PH-14){fim();novaPag('Detalhamento das não conformidades e ressalvas (cont.)');y=30}};
+    nc.forEach(c=>{
+      quebra(12);doc.setFont('helvetica','bold');doc.setFontSize(10.5);
+      const cor=c.res==='NC'?[192,57,43]:[150,115,40];doc.setTextColor(...cor);doc.text(`${c.nome} — ${RES[c.res][0]}`,M,y);doc.setTextColor(28,27,25);y+=5;
+      if(c.nota){doc.setFont('helvetica','normal');doc.setFontSize(8.5);const l=doc.splitTextToSize(c.nota,PW-2*M);quebra(l.length*4);doc.text(l,M,y);y+=l.length*4+1}
+      c.itens.forEach(i=>{
+        const txt=`Área de sobreposição: ${fmt(i.ha,4)} ha  |  Sobreposição critério: ${fmt(i.pctCrit,2)}%  |  Sobreposição território: ${fmt(i.pctTerr,2)}%${i.id?`  |  ID ${i.id}`:''}${i.data?`  |  Data: ${i.data}`:''}${i.extra?`  |  ${i.extra}`:''}`;
+        const l=doc.splitTextToSize(txt,PW-2*M-6);quebra(5+l.length*4);
+        doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(i.titulo,M+3,y);y+=4.2;
+        doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(l,M+3,y);y+=l.length*4+2;
+      });
+      y+=3;
+    });
+    fim();
+  }
+  // ---- mapa ----
+  novaPag('Mapa do imóvel e sobreposições');
+  const sz=PH-16-30;doc.addImage(imgMapa,'JPEG',M,25,sz,sz);
+  let x=M+sz+8;y=30;const cw=PW-x-M;
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Legenda',x,y);y+=5;doc.setFont('helvetica','normal');doc.setFontSize(8.5);
+  [[[255,212,0],'Limite do imóvel (CAR)'],[[255,59,48],'Desmatamento PRODES no imóvel'],[[255,157,46],'Embargo IBAMA / ICMBio'],[[195,155,255],'TI / UC / Quilombola / Assentamento']].forEach(([c,t])=>{doc.setDrawColor(...c);doc.setLineWidth(.8);doc.rect(x,y-2.8,4,3);doc.text(t,x+6,y);y+=5});
+  doc.setLineWidth(.2);y+=3;
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Alertas PRODES no imóvel',x,y);y+=5;doc.setFontSize(8);
+  doc.text('#',x,y);doc.text('Fonte',x+9,y);doc.text('Ano',x+44,y);doc.text('Data img.',x+56,y);doc.text('No imóvel (ha)',x+cw,y,{align:'right'});y+=1.5;doc.setDrawColor(200);doc.line(x,y,x+cw,y);y+=4;
+  doc.setFont('helvetica','normal');
+  S.alertas.slice(0,24).forEach(a=>{doc.text('A'+a.id,x,y);doc.text(String(a.fonte||''),x+9,y,{maxWidth:34});doc.text(String(a.ano||'—'),x+44,y);doc.text(fdate(a.data),x+56,y);doc.text(fmt(a.ha),x+cw,y,{align:'right'});y+=4.4});
+  if(S.alertas.length>24){doc.text(`+ ${S.alertas.length-24} alerta(s)…`,x,y);y+=4.4}
+  if(!S.alertas.length){doc.text('Nenhum alerta acima do filtro.',x,y);y+=4.4}
+  fim();
+  // páginas de cenas
+  if(S.cenas.length){
+    const porPag=8,cols=4,gap=4,th=Math.min((PW-2*M-(cols-1)*gap)/cols,(PH-25-14-18)/2),tw=th;
+    for(let p=0;p*porPag<S.cenas.length;p++){
+      doc.addPage();
+      const v=$('alvo').value,a=S.alertas.find(q=>q.id==v);
+      cab(`Análise multitemporal — ${a?`Alerta A${a.id} (${a.ano||''}, ${fmt(a.ha)} ha)`:'Imóvel inteiro'} — ${$('comp').selectedOptions[0].text.split(' (')[0]}`);
+      S.cenas.slice(p*porPag,p*porPag+porPag).forEach((s,i)=>{
+        const cx=M+(i%cols)*(tw+gap),cy=25+Math.floor(i/cols)*(th+9);
+        doc.addImage($('cv'+(p*porPag+i)).toDataURL('image/jpeg',.88),'JPEG',cx,cy,tw,th);
+        const o=s.opcoes[s.idx];doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.text(String(s.ano),cx,cy+th+4);
+        doc.setFont('helvetica','normal');doc.text(o?`${nomeSat(o)} · ${fdate(o.data)} · nuvem ${fmt(o.nuvem||0,0)}%`:'sem cena',cx+10,cy+th+4);
+      });
+      pe(pg);pg++;
+    }
+  }
+  doc.save(`laudo_${slug()}.pdf`);
+  status('st3','PDF gerado.');
+  }catch(err){status('st3','Erro ao gerar PDF: '+err.message,true)}
+  $('bPdf').disabled=false;
+});
+/* ---------- imagens INPE (Brazil Data Cube) ---------- */
+const BDC='https://data.inpe.br/bdc/stac/v1/search';
+const INPE_COLS=[
+  {id:'CB2-CCD-L2-DN-1',nome:'CBERS-2 CCD',res:'20 m',on:true},
+  {id:'CB2B-CCD-L2-DN-1',nome:'CBERS-2B CCD',res:'20 m',on:true},
+  {id:'CB2B-HRC-L2-DN-1',nome:'CBERS-2B HRC',res:'2,7 m pan',on:true},
+  {id:'RESOURCESAT1_LISS3_L2_DN-1',nome:'ResourceSat-1 LISS-3',res:'23,5 m',on:true},
+  {id:'CB4-PAN5M-L4-DN-1',nome:'CBERS-4 PAN5M',res:'5 m pan',on:true},
+  {id:'CB4-PAN10M-L4-DN-1',nome:'CBERS-4 PAN10M',res:'10 m',on:true},
+  {id:'CB4-MUX-L4-DN-1',nome:'CBERS-4 MUX',res:'20 m',on:true},
+  {id:'CB4A-WPM-PCA-FUSED-1',nome:'CBERS-4A WPM fusionada',res:'2 m cor',on:true},
+  {id:'CB4A-WPM-L4-DN-1',nome:'CBERS-4A WPM',res:'2 m pan + 8 m',on:true},
+  {id:'CB4A-MUX-L4-DN-1',nome:'CBERS-4A MUX',res:'16,5 m',on:true},
+  {id:'AMZ1-WFI-L4-DN-1',nome:'Amazonia-1 WFI',res:'64 m',on:false}
+];
+$('iAno1').value=new Date().getFullYear();
+$('iSens').innerHTML=INPE_COLS.map((c,i)=>`<label><input type="checkbox" data-c="${i}" ${c.on?'checked':''}>${c.nome} <small>${c.res}</small></label>`).join('');
+async function buscaColecao(col,geom,ini,fim){
+  let out=[],body={collections:[col],intersects:geom,datetime:`${ini}/${fim}`,limit:500},url=BDC;
+  for(let pag=0;url&&pag<8;pag++){
+    const r=body?await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}):await fetch(url);
+    if(!r.ok)throw new Error(r.status);const j=await r.json();out=out.concat(j.features||[]);
+    const nx=(j.links||[]).find(l=>l.rel==='next');if(!nx||!(j.features||[]).length)break;
+    url=nx.href;body=nx.body?(nx.merge?{...body,...nx.body}:nx.body):((nx.method||'GET').toUpperCase()==='POST'?body:null);
+  }
+  return out;
+}
+$('bInpe').addEventListener('click',async()=>{
+  if(!S.uniao)return;
+  const a0=parseInt($('iAno0').value)||2007,a1=parseInt($('iAno1').value)||new Date().getFullYear();
+  const sel=[...$('iSens').querySelectorAll('input:checked')].map(i=>INPE_COLS[+i.dataset.c]);
+  if(!sel.length){status('st4','Marque ao menos um sensor.',true);return}
+  $('bInpe').disabled=true;$('inpeRes').innerHTML='';gInpe.clearLayers();$('pgI').style.width='0';
+  const geom=S.uniao.geometry||S.uniao,bi=turf.bbox(S.uniao),todos=[],falhas=[];let feitos=0;
+  status('st4',`Consultando ${sel.length} coleções do INPE…`);
+  await Promise.all(sel.map(async c=>{
+    try{const fs=await buscaColecao(c.id,geom,`${a0}-01-01T00:00:00Z`,`${a1}-12-31T23:59:59Z`);fs.forEach(f=>{f._c=c;todos.push(f)})}
+    catch(e){falhas.push(c.nome)}
+    $('pgI').style.width=(++feitos/sel.length*100)+'%';
+  }));
+  todos.sort((x,y)=>String(y.properties.datetime).localeCompare(x.properties.datetime));
+  if(!todos.length){status('st4','Nenhuma cena encontrada para este imóvel no período e sensores escolhidos.'+(falhas.length?' Falhou: '+falhas.join(', '):''));$('bInpe').disabled=false;return}
+  const cobre=f=>f.bbox&&f.bbox[0]<=bi[0]&&f.bbox[1]<=bi[1]&&f.bbox[2]>=bi[2]&&f.bbox[3]>=bi[3];
+  const cont={};todos.forEach(f=>cont[f._c.nome]=(cont[f._c.nome]||0)+1);
+  let h=`<div class="isum">${Object.entries(cont).map(([k,v])=>`<span>${k}: ${v}</span>`).join('')}</div>`,anoAt=null;
+  todos.forEach((f,i)=>{
+    const ano=String(f.properties.datetime).slice(0,4);
+    if(ano!==anoAt){if(anoAt)h+='</div></details>';const n=todos.filter(x=>String(x.properties.datetime).startsWith(ano)).length;h+=`<details class="anoD" ${anoAt?'':'open'}><summary><span class="ano">${ano}</span><span class="q">${n} cena${n>1?'s':''}</span></summary><div class="grid">`;anoAt=ano}
+    const as=f.assets||{},th=(as.thumbnail||{}).href||'';
+    const arqs=Object.entries(as).filter(([k,v])=>!/_xml$|thumbnail|metadata/i.test(k)&&/tif/i.test((v.type||'')+v.href));
+    h+=`<div class="scene inpe"><div class="wmz"><img src="${th}" alt="Prévia ${f.id}" loading="lazy"></div><div class="meta"><b>${fdate(f.properties.datetime)}</b>
+      <span style="font-size:12px;color:var(--mut)">${f._c.nome} · ${f._c.res} · ${cobre(f)?'cobre o imóvel inteiro':'cobre parte do imóvel'}</span>
+      <button class="sec" data-i="${i}">Mostrar no mapa</button>
+      ${arqs.length?`<details><summary>${TEC?'':'🔒 '}Arquivos (${arqs.length})${TEC?'':' — solicitar'}</summary><div class="arq">${arqs.map(([k,v])=>`<div><a href="${v.href}" target="_blank" rel="noopener">${k==='tci'?'Cor natural':k.replace(/_/g,' ')}</a><button class="sec" data-qgis="${v.href}">QGIS</button></div>`).join('')}</div></details>`:''}
+    </div></div>`;
+  });
+  h+='</div></details>';
+  $('inpeRes').innerHTML=h;
+  $('inpeRes').querySelectorAll('button[data-i]').forEach(b=>b.addEventListener('click',()=>{
+    const f=todos[+b.dataset.i],th=(f.assets.thumbnail||{}).href,[w,s2,e,n]=f.bbox;gInpe.clearLayers();
+    if(th)L.imageOverlay(th,[[s2,w],[n,e]],{opacity:.9}).addTo(gInpe);
+    L.rectangle([[s2,w],[n,e]],{color:'#b7854f',weight:1,fill:false}).addTo(gInpe);
+    document.getElementById('analise').scrollIntoView({behavior:'smooth'});map.fitBounds(gImovel.getBounds(),{padding:[20,20]});
+    status('st4',`Prévia de ${f._c.nome} de ${fdate(f.properties.datetime)} no mapa (baixa resolução, posição aproximada).`)}));
+  $('inpeRes').querySelectorAll('button[data-qgis]').forEach(b=>b.addEventListener('click',async()=>{
+    const t=b.dataset.qgis;
+    try{await navigator.clipboard.writeText(t);status('st4','Link copiado. No QGIS: Camada › Adicionar camada raster › Protocolo HTTP(S), cole o link e clique em Adicionar.')}
+    catch(e){status('st4','Copie este link e cole no QGIS (Adicionar raster › Protocolo HTTP): '+t)}}));
+  status('st4',`${todos.length} cenas INPE encontradas de ${a0} a ${a1}, da mais recente para a mais antiga.`+(falhas.length?` Não responderam: ${falhas.join(', ')}.`:''));
+  $('bInpe').disabled=false;
+});
+/* ---------- exportar vetores (Shapefile / KML) ---------- */
+function camadasExport(){
+  const car=normCar($('car').value||''),mun=$('mun').value||'',nome=$('nome').value||'';
+  const imovel=S.imovel.features.map(f=>({geom:f.geometry,attrs:{cod_imovel:car,nome:nome,municipio:mun,area_ha:+haDe(f).toFixed(4)}}));
+  const alertas=S.alertas.map(a=>({geom:a.geom.geometry,attrs:{id:'A'+a.id,fonte:a.fonte||'',ano:a.ano||0,data_img:fdate(a.data)||'',area_ha:+a.ha.toFixed(4),area_tot:+a.haTotal.toFixed(4)}}));
+  return [
+    {nome:'imovel',campos:[['cod_imovel','C',60],['nome','C',80],['municipio','C',60],['area_ha','N',16,4]],itens:imovel},
+    {nome:'alertas_no_imovel',campos:[['id','C',10],['fonte','C',40],['ano','N',6,0],['data_img','C',12],['area_ha','N',16,4],['area_tot','N',16,4]],itens:alertas}
+  ];
+}
+function aneis(geom){ // [[anel,...] por polígono], orientação do shapefile: externo horário, furos anti-horário
+  const polys=geom.type==='Polygon'?[geom.coordinates]:geom.type==='MultiPolygon'?geom.coordinates:[];
+  const out=[];
+  polys.forEach(p=>p.forEach((r,i)=>{if(r.length<4)return;const cw=turf.booleanClockwise(r);out.push((i===0)===cw?r:r.slice().reverse())}));
+  return out;
+}
+function escreverShp(itens){
+  const recs=itens.map(it=>{const rs=aneis(it.geom);const np=rs.reduce((n,r)=>n+r.length,0);
+    let bb=[Infinity,Infinity,-Infinity,-Infinity];rs.forEach(r=>r.forEach(([x,y])=>{bb=[Math.min(bb[0],x),Math.min(bb[1],y),Math.max(bb[2],x),Math.max(bb[3],y)]}));
+    return {rs,np,bb,len:44+4*rs.length+16*np}});
+  const shpLen=100+recs.reduce((n,r)=>n+8+r.len,0),shxLen=100+8*recs.length;
+  const shp=new DataView(new ArrayBuffer(shpLen)),shx=new DataView(new ArrayBuffer(shxLen));
+  let gb=[Infinity,Infinity,-Infinity,-Infinity];recs.forEach(r=>{gb=[Math.min(gb[0],r.bb[0]),Math.min(gb[1],r.bb[1]),Math.max(gb[2],r.bb[2]),Math.max(gb[3],r.bb[3])]});
+  if(!recs.length)gb=[0,0,0,0];
+  [[shp,shpLen],[shx,shxLen]].forEach(([v,l])=>{v.setInt32(0,9994);v.setInt32(24,l/2);v.setInt32(28,1000,true);v.setInt32(32,5,true);
+    v.setFloat64(36,gb[0],true);v.setFloat64(44,gb[1],true);v.setFloat64(52,gb[2],true);v.setFloat64(60,gb[3],true)});
+  let o=100;
+  recs.forEach((r,i)=>{
+    shx.setInt32(100+i*8,o/2);shx.setInt32(104+i*8,r.len/2);
+    shp.setInt32(o,i+1);shp.setInt32(o+4,r.len/2);let q=o+8;
+    shp.setInt32(q,5,true);[0,1,2,3].forEach(k=>shp.setFloat64(q+4+k*8,r.bb[k],true));
+    shp.setInt32(q+36,r.rs.length,true);shp.setInt32(q+40,r.np,true);
+    let idx=0,pq=q+44;r.rs.forEach(rg=>{shp.setInt32(pq,idx,true);pq+=4;idx+=rg.length});
+    r.rs.forEach(rg=>rg.forEach(([x,y])=>{shp.setFloat64(pq,x,true);shp.setFloat64(pq+8,y,true);pq+=16}));
+    o+=8+r.len;
+  });
+  return {shp:shp.buffer,shx:shx.buffer};
+}
+function escreverDbf(campos,itens){
+  const enc=new TextEncoder(),recLen=1+campos.reduce((n,c)=>n+c[2],0),hdrLen=32+32*campos.length+1;
+  const buf=new Uint8Array(hdrLen+recLen*itens.length+1),v=new DataView(buf.buffer),d=new Date();
+  v.setUint8(0,3);v.setUint8(1,d.getFullYear()-1900);v.setUint8(2,d.getMonth()+1);v.setUint8(3,d.getDate());
+  v.setUint32(4,itens.length,true);v.setUint16(8,hdrLen,true);v.setUint16(10,recLen,true);
+  campos.forEach(([n,t,l,dec],i)=>{const b=32+i*32;buf.set(enc.encode(n).slice(0,10),b);buf[b+11]=t.charCodeAt(0);buf[b+16]=l;buf[b+17]=dec||0});
+  buf[hdrLen-1]=0x0d;
+  itens.forEach((it,r)=>{let p=hdrLen+r*recLen;buf[p++]=0x20;
+    campos.forEach(([n,t,l,dec])=>{let val=it.attrs[n];let str;
+      if(t==='N'){str=(Number(val)||0).toFixed(dec||0);str=str.padStart(l,' ').slice(-l);buf.set(enc.encode(str),p)}
+      else{let b=enc.encode(String(val??''));if(b.length>l){let s2=String(val);while(enc.encode(s2).length>l)s2=s2.slice(0,-1);b=enc.encode(s2)}const pad=new Uint8Array(l).fill(0x20);pad.set(b);buf.set(pad,p)}
+      p+=l})});
+  buf[buf.length-1]=0x1a;
+  return buf.buffer;
+}
+const PRJ='GEOGCS["SIRGAS 2000",DATUM["D_SIRGAS_2000",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]]';
+$('bShp').addEventListener('click',async()=>{
+  try{
+    const zip=new JSZip();
+    camadasExport().forEach(c=>{if(!c.itens.length)return;const {shp,shx}=escreverShp(c.itens);
+      zip.file(c.nome+'.shp',shp);zip.file(c.nome+'.shx',shx);zip.file(c.nome+'.dbf',escreverDbf(c.campos,c.itens));zip.file(c.nome+'.prj',PRJ);zip.file(c.nome+'.cpg','UTF-8')});
+    baixar(await zip.generateAsync({type:'blob'}),`shapefile_${slug()}.zip`);
+    status('st3','Shapefile gerado (imóvel'+(S.alertas.length?' + alertas no imóvel':'')+', SIRGAS 2000).');
+  }catch(e){status('st3','Erro ao gerar shapefile: '+e.message,true)}
+});
+function kmlCoords(r){return r.map(([x,y])=>`${x.toFixed(8)},${y.toFixed(8)},0`).join(' ')}
+function kmlGeom(g){
+  const polys=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];
+  const P=polys.map(p=>`<Polygon><outerBoundaryIs><LinearRing><coordinates>${kmlCoords(p[0])}</coordinates></LinearRing></outerBoundaryIs>${p.slice(1).map(h=>`<innerBoundaryIs><LinearRing><coordinates>${kmlCoords(h)}</coordinates></LinearRing></innerBoundaryIs>`).join('')}</Polygon>`).join('');
+  return polys.length>1?`<MultiGeometry>${P}</MultiGeometry>`:P;
+}
+const xesc=t=>String(t??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+$('bKml').addEventListener('click',()=>{
+  const cs=camadasExport();
+  const pm=(it,style,nome)=>`<Placemark><name>${xesc(nome)}</name><styleUrl>#${style}</styleUrl><ExtendedData>${Object.entries(it.attrs).map(([k,v])=>`<Data name="${k}"><value>${xesc(v)}</value></Data>`).join('')}</ExtendedData>${kmlGeom(it.geom)}</Placemark>`;
+  const kml=`<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${xesc(($('nome').value||'Imóvel')+' — R.A AgroTec')}</name>
+<Style id="imovel"><LineStyle><color>ff00d4ff</color><width>3</width></LineStyle><PolyStyle><fill>0</fill></PolyStyle></Style>
+<Style id="alerta"><LineStyle><color>ff303bff</color><width>2</width></LineStyle><PolyStyle><color>66303bff</color></PolyStyle></Style>
+<Folder><name>Imóvel</name>${cs[0].itens.map(it=>pm(it,'imovel',it.attrs.nome||it.attrs.cod_imovel||'Imóvel')).join('')}</Folder>
+<Folder><name>Alertas no imóvel</name>${cs[1].itens.map(it=>pm(it,'alerta',`${it.attrs.id} — ${it.attrs.fonte} ${it.attrs.ano||''} — ${fmt(it.attrs.area_ha)} ha`)).join('')}</Folder>
+</Document></kml>`;
+  baixar(new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}),`imovel_alertas_${slug()}.kml`);
+  status('st3','KML gerado (abre no Google Earth).');
+});
+async function buscarCenasRecentes(pt){
+  const fim=new Date(),ini=new Date(fim-400*864e5);
+  const body={collections:['sentinel-2-l2a'],limit:8,'filter-lang':'cql2-json',filter:{op:'and',args:[
+    {op:'s_intersects',args:[{property:'geometry'},{type:'Point',coordinates:pt}]},
+    {op:'anyinteracts',args:[{property:'datetime'},{interval:[ini.toISOString(),fim.toISOString()]}]},
+    {op:'<=',args:[{property:'eo:cloud_cover'},10]}]},sortby:[{field:'datetime',direction:'desc'}],fields:{include:['id','properties.datetime'],exclude:['assets','links','geometry']}};
+  const r=await fetch(PC+'/stac/v1/search',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  return (await r.json()).features||[];
+}
+}
+</script>
+<script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document.body,{childList:true,subtree:true})</script>
+</body>
+</html>
