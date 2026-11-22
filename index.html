@@ -106,7 +106,7 @@ tr.sel{background:var(--ocl)}tr.click{cursor:pointer}tr.click:hover{background:#
 .res{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;padding:18px;border-radius:14px;background:#faf8f3;border:1px solid var(--line);margin-bottom:14px}
 @media(max-width:600px){.res{grid-template-columns:1fr}}
 .res .big{font:800 20px Manrope;padding:12px 18px;border-radius:12px;color:#fff;text-align:center;letter-spacing:-.01em}
-.res .big.nc{background:var(--red)}.res .big.c{background:var(--ok)}
+.res .big.nc{background:var(--red)}.res .big.c{background:var(--ok)}.res .big.v{background:#b7852f}
 .res .info{font-size:14px;color:var(--mut);line-height:1.7}.res .info b{color:var(--ink)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .kpis div{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fff}
@@ -337,7 +337,7 @@ document.getElementById('bUpl').addEventListener('click',()=>document.getElement
 window.__RA=()=>S;
 const WA_NUM='5562994155001',WA_SVG='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3a.5.5 0 0 0 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.9 11.9 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.2c0-.1-.2-.2-.5-.3Z"/></svg>';
 function waLink(msg){return 'https://wa.me/'+WA_NUM+'?text='+encodeURIComponent(msg)}
-function msgLaudo(){const g=S.criterios.length?(resultadoGeral()==='NC'?'NÃO CONFORME':'CONFORME'):'';const nc=S.criterios.filter(c=>c.res==='NC').map(c=>c.nome);
+function msgLaudo(){const g=S.criterios.length?TXTG[resultadoGeral()]:'';const nc=S.criterios.filter(c=>c.res==='NC').map(c=>c.nome);
   return `Olá! Fiz a consulta no app R.A AgroTec e quero o laudo completo.\nImóvel: ${$('nome').value||'—'}\nCAR: ${$('car').value||'—'}\nMunicípio: ${$('mun').value||'—'}`+(g?`\nResultado: ${g}`:'')+(nc.length?`\nNão conformidades: ${nc.join('; ')}`:'')}
 
 const TEC_HASH='f37f6240ec5ad0580416d1910ccdce5b5816ea70978975272c8d0c26a3cdedcd';
@@ -346,7 +346,7 @@ let TEC=false;try{TEC=localStorage.getItem('ra_tec')===TEC_HASH}catch(e){}
 function aplicarModo(){document.body.classList.toggle('tec',TEC);document.body.classList.toggle('publico',!TEC);
   ['bPdf','bShp','bKml','bPng'].forEach(id=>{const b=document.getElementById(id);if(!b)return;b.classList.toggle('lock',!TEC);const sm=b.querySelector('small');if(sm){if(!sm.dataset.o)sm.dataset.o=sm.textContent;sm.textContent=TEC?sm.dataset.o:'Liberado após pagamento — toque para solicitar no WhatsApp'}});
   if(S.cenas&&S.cenas.length&&typeof redesenharTudo==='function')redesenharTudo();}
-function msgCompra(item){return `Olá! Fiz a consulta no app R.A AgroTec e quero comprar: ${item}.\nImóvel: ${$('nome').value||'—'}\nCAR: ${$('car').value||'—'}\nMunicípio: ${$('mun').value||'—'}`+(S.criterios.length?`\nResultado: ${resultadoGeral()==='NC'?'NÃO CONFORME':'CONFORME'}`:'')}
+function msgCompra(item){return `Olá! Fiz a consulta no app R.A AgroTec e quero comprar: ${item}.\nImóvel: ${$('nome').value||'—'}\nCAR: ${$('car').value||'—'}\nMunicípio: ${$('mun').value||'—'}`+(S.criterios.length?`\nResultado: ${TXTG[resultadoGeral()]}`:'')}
 function abrirWA(msg){const a=document.createElement('a');a.href=waLink(msg);a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove()}
 const ITENS={bPdf:'o relatório completo em PDF',bShp:'o shapefile do imóvel e dos alertas',bKml:'o arquivo KML do imóvel e dos alertas',bPng:'as imagens da análise multitemporal'};
 document.addEventListener('click',e=>{if(TEC)return;const b=e.target.closest('#bPdf,#bShp,#bKml,#bPng,[data-qgis],.arq a');if(!b)return;
@@ -512,7 +512,11 @@ async function qArc(path,bb){
 async function qProdes(layer,bb){
   const [w,s,e,n]=bb;
   const u=`${TB}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${layer}&outputFormat=application/json&srsName=EPSG:4326&count=5000&bbox=${s},${w},${n},${e},urn:ogc:def:crs:EPSG::4326`;
-  try{const r=await fetch(u);if(!r.ok)return null;const j=await r.json();return j.features||[]}catch(err){return null}
+  for(let t=0;t<4;t++){
+    try{const r=await fetch(u+'&_='+Date.now(),{cache:'no-store'});if(r.ok){const j=await r.json();if(j&&Array.isArray(j.features))return j.features}}catch(err){}
+    await new Promise(z=>setTimeout(z,1500*(t+1)));
+  }
+  return null;
 }
 const dataDe=v=>{if(v==null||v==='')return'';if(typeof v==='number'){return fdate(v<1e11?v*1000:v)}return fdate(v)};
 function sobrepor(feats,fn){ // devolve itens com geometria da sobreposição
@@ -644,14 +648,16 @@ async function buscar(){
   processarAlertas(S._brutos);
   renderConf();
   const nc=C.filter(c=>c.res==='NC').length;
-  status('st1',`${nc?nc+' critério(s) NÃO CONFORME':'Todos os critérios consultados CONFORMES'} · ${S.alertas.length} alerta(s) PRODES no imóvel`);
+  const nv=C.filter(c=>c.res==='V').length;
+  status('st1',`${nc?nc+' critério(s) NÃO CONFORME':(nv?'Nenhuma não conformidade encontrada, mas '+nv+' critério(s) a VERIFICAR':'Todos os critérios CONFORMES')} · ${S.alertas.length} alerta(s) PRODES no imóvel`);
   $('bBuscar').disabled=false;
 }
 const RES={C:['CONFORME','c'],NC:['NÃO CONFORME','nc'],V:['VERIFICAR *','v']};
-function resultadoGeral(){return S.criterios.some(c=>c.res==='NC')?'NC':'C'}
+function resultadoGeral(){return S.criterios.some(c=>c.res==='NC')?'NC':(S.criterios.some(c=>c.res==='V')?'V':'C')}
+const TXTG={NC:'NÃO CONFORME',V:'VERIFICAR',C:'CONFORME'};
 function renderConf(){
   const g=resultadoGeral(),nc=S.criterios.filter(c=>c.res==='NC');
-  let h=`<div class="res"><span class="big ${g==='NC'?'nc':'c'}">${g==='NC'?'NÃO CONFORME':'CONFORME'}</span><div class="info"><b>CAR:</b> ${$('car').value||'—'}<br><b>Município/UF:</b> ${$('mun').value||'—'} · <b>Área:</b> ${fmt(haDe(S.uniao))} ha${S.car&&S.car.status_imovel?` · <b>Status CAR:</b> ${STATUS_CAR[S.car.status_imovel]||S.car.status_imovel}`:''}</div></div>`;
+  let h=`<div class="res"><span class="big ${g==='NC'?'nc':g==='V'?'v':'c'}">${TXTG[g]}</span><div class="info"><b>CAR:</b> ${$('car').value||'—'}<br><b>Município/UF:</b> ${$('mun').value||'—'} · <b>Área:</b> ${fmt(haDe(S.uniao))} ha${S.car&&S.car.status_imovel?` · <b>Status CAR:</b> ${STATUS_CAR[S.car.status_imovel]||S.car.status_imovel}`:''}</div></div>`;
   const nV=S.criterios.filter(c=>c.res==='V').length,haAl=S.alertas.reduce((t,a)=>t+a.ha,0),haEmb=S.embargos.reduce((t,e)=>t+e.ha,0);
   h+=`<div class="kpis"><div><b>${S.criterios.length}</b><span>critérios avaliados</span></div><div><b style="color:${nc.length?'var(--red)':'var(--ok)'}">${nc.length}</b><span>não conformes</span></div><div><b>${nV}</b><span>a verificar</span></div><div><b>${fmt(haAl)} ha</b><span>alertas de desmatamento no imóvel</span></div><div><b>${fmt(haEmb)} ha</b><span>embargados no imóvel</span></div></div>`;
   h+=`<div class="scroll"><table><thead><tr><th>Critério</th><th>Resultado</th></tr></thead><tbody>`+S.criterios.map(c=>`<tr><td>${c.nome}${c.nota?`<div style="font-size:12px;color:var(--mut)">${c.nota}</div>`:''}</td><td><span class="tag ${RES[c.res][1]}">${RES[c.res][0]}</span></td></tr>`).join('')+'</tbody></table></div>';
@@ -947,9 +953,9 @@ $('bPdf').addEventListener('click',async()=>{
       doc.setFont('helvetica','normal');doc.setTextColor(190,182,168);doc.text(k,M,yy);doc.setTextColor(255);doc.setFont('helvetica','bold');
       const l=doc.splitTextToSize(String(v),tw-30);doc.text(l,M+30,yy);yy+=5+4.6*Math.max(1,l.length)});
     const g0=resultadoGeral();yy+=6;
-    if(g0==='NC')doc.setFillColor(192,57,43);else doc.setFillColor(46,125,79);
+    if(g0==='NC')doc.setFillColor(192,57,43);else if(g0==='V')doc.setFillColor(183,133,47);else doc.setFillColor(46,125,79);
     doc.roundedRect(M,yy,tw,15,2.5,2.5,'F');doc.setTextColor(255);doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('Resultado geral da análise',M+5,yy+6);
-    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(g0==='NC'?'NÃO CONFORME':'CONFORME',M+5,yy+12);
+    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(TXTG[g0],M+5,yy+12);
     doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(231,184,119);doc.text('Laudo técnico e regularização: WhatsApp (62) 99415-5001',M,PH-24);
     doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(170,162,148);
     doc.text(doc.splitTextToSize(`Imagem: Sentinel-2 (Copernicus/ESA)${rec[0]?' de '+fdate(rec[0].properties.datetime):''}. Triagem automática a partir de bases públicas oficiais — requer conferência nas fontes e avaliação técnica.`,tw),M,PH-14);
@@ -963,8 +969,8 @@ $('bPdf').addEventListener('click',async()=>{
   [['Imóvel',$('nome').value||'—'],['CAR',$('car').value||'—'],['Município/UF',$('mun').value||'—'],['Área do imóvel',fmt(haDe(S.uniao))+' ha'],['Status do CAR',S.car&&S.car.status_imovel?(STATUS_CAR[S.car.status_imovel]||S.car.status_imovel):'—']]
     .forEach(([k,v],i)=>{doc.setTextColor(102,98,90);doc.text(k,M,36+i*5.5);doc.setTextColor(28,27,25);doc.text(String(v),M+32,36+i*5.5,{maxWidth:140})});
   doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Resultado geral da análise',PW-M-80,30);
-  if(g==='NC')doc.setFillColor(192,57,43);else doc.setFillColor(46,125,79);
-  doc.roundedRect(PW-M-80,33,80,16,3,3,'F');doc.setTextColor(255);doc.setFontSize(16);doc.text(g==='NC'?'NÃO CONFORME':'CONFORME',PW-M-40,43.5,{align:'center'});doc.setTextColor(28,27,25);
+  if(g==='NC')doc.setFillColor(192,57,43);else if(g==='V')doc.setFillColor(183,133,47);else doc.setFillColor(46,125,79);
+  doc.roundedRect(PW-M-80,33,80,16,3,3,'F');doc.setTextColor(255);doc.setFontSize(16);doc.text(TXTG[g],PW-M-40,43.5,{align:'center'});doc.setTextColor(28,27,25);
   let y=68;doc.setFontSize(10);doc.setFont('helvetica','bold');doc.text('Critérios e resultados da análise',M,y-4);
   const colR=PW-M-34,rowH=6.1;
   doc.setFontSize(8.5);doc.setTextColor(102,98,90);doc.text('Critério',M+2,y);doc.text('Resultado',colR+17,y,{align:'center'});doc.setTextColor(28,27,25);y+=2;
