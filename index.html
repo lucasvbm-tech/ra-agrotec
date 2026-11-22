@@ -212,7 +212,7 @@ footer p{margin:6px 0 0;font-size:13px;line-height:1.6;max-width:860px}
       <input type="file" id="fAlertas" accept=".zip,.kml,.geojson,.json">
     </div>
     <div class="status" id="st1"></div>
-    <div class="chips"><span>18 critérios socioambientais</span><span>PRODES · 6 biomas</span><span>MapBiomas Alerta</span><span>IBAMA · ICMBio</span><span>FUNAI · INCRA · UCs</span><span>Landsat · Sentinel-2</span><span>CBERS-4A 2 m</span></div>
+    <div class="chips"><span>19 critérios socioambientais</span><span>PRODES · 6 biomas</span><span>MapBiomas Alerta</span><span>Embargos IBAMA · ICMBio · SEMAD-GO</span><span>FUNAI · INCRA · UCs</span><span>Landsat · Sentinel-2</span><span>CBERS-4A 2 m</span></div>
   </div>
   <span class="credit">Imagem: Sentinel-2 (Copernicus/ESA), Cristalina-GO, ago/2025</span>
 </section>
@@ -236,7 +236,7 @@ footer p{margin:6px 0 0;font-size:13px;line-height:1.6;max-width:860px}
     <div class="legend">
       <span><i style="border:2px solid var(--yel)"></i>Imóvel</span>
       <span><i style="background:#d6402f88;border:1px solid #d6402f"></i>Alerta no imóvel</span>
-      <span><i style="background:#b9741f66;border:1px dashed var(--oc)"></i>Embargo (IBAMA/ICMBio)</span>
+      <span><i style="background:#b9741f66;border:1px dashed var(--oc)"></i>Embargo (IBAMA/ICMBio/SEMAD-GO)</span>
       <span><i style="background:#7b4bb755;border:1px solid #7b4bb7"></i>TI / UC / Quilombola / Assentamento</span>
     </div>
   </div>
@@ -547,6 +547,20 @@ async function qMapBiomas(cod){
       return g?{type:'Feature',geometry:g,properties:{alertCode:a.alertCode,area_total:a.areaHa,detectedAt:a.detectedAt,publishedAt:a.publishedAt,status:a.statusName,area_car_mb:cr?cr.alertAreaInCar:null,year:+String(a.detectedAt||'').slice(0,4)||null,image_date:a.detectedAt,_fonte:'MapBiomas Alerta'}}:null}).filter(Boolean)}
   catch(e){return null}
 }
+/* Embargos estaduais de Goiás (SEMAD/SIGA-GO): cópia da camada pública hospedada junto com o site, dividida em blocos de 0,5° */
+let EMBGO_IDX=null;
+async function qEmbargoGO(bb){
+  try{
+    if(!EMBGO_IDX){const r=await fetch('emb_go/index.json',{cache:'no-cache'});if(!r.ok)return null;EMBGO_IDX=await r.json()}
+    const S=EMBGO_IDX.grade||0.5,tem=new Set(EMBGO_IDX.tiles),out=[],vistos=new Set();
+    for(let tx=Math.floor(bb[0]/S);tx<=Math.floor(bb[2]/S);tx++)for(let ty=Math.floor(bb[1]/S);ty<=Math.floor(bb[3]/S);ty++){
+      const k=`${tx}_${ty}`;if(!tem.has(k))continue;
+      const r=await fetch(`emb_go/${k}.json`);if(!r.ok)return null;const j=await r.json();
+      (j.features||[]).forEach(f=>{const id=(f.properties.codigo||'')+'|'+(f.properties.sei||'')+'|'+JSON.stringify(f.geometry.coordinates).length;if(!vistos.has(id)){vistos.add(id);out.push(f)}});
+    }
+    return out;
+  }catch(e){return null}
+}
 async function buscar(){
   if(!S.uniao)return;
   const bb=turf.bbox(S.uniao),uf=ufImovel(),min=parseFloat($('minHa').value)||0,anoMin=parseInt($('anoMin').value)||0;
@@ -597,6 +611,12 @@ async function buscar(){
   const ibama=crit('Embargos IBAMA',arc.ibama,p=>({titulo:`Embargo IBAMA - TAD ${p.num_tad||''}${p.serie_tad?'-'+p.serie_tad:''}`,id:p.seq_tad||p.objectid||'',data:dataDe(p.dat_embargo),extra:[p.tipo_area,p.municipio&&(p.municipio+'/'+(p.uf||''))].filter(Boolean).join(' · ')}));
   const estadual=(nome,sigla,url)=>{if(uf&&uf!==sigla)add(nome,'C',[],`Imóvel fora de ${sigla} — critério não se aplica.`);else add(nome,'V',[],`Fonte estadual sem consulta automática. Verificar em ${url}.`)};
   estadual('Embargos SEMA MT','MT','monitoramento.sema.mt.gov.br');
+  let goIt=[];
+  if(uf&&uf!=='GO')add('Embargos SEMAD GO','C',[],'Imóvel fora de GO — critério não se aplica.');
+  else{const fg=await qEmbargoGO(bb);
+    if(fg===null)add('Embargos SEMAD GO','V',[],'Base de embargos estaduais de Goiás indisponível no momento. Verificar no SIGA-GO (siga.meioambiente.go.gov.br).');
+    else{goIt=sobrepor(fg,p=>({titulo:`Embargo SEMAD GO - ${p.codigo||'s/ nº'}`,id:p.sei?('SEI '+p.sei):(p.sga?('SGA '+p.sga):''),data:dataDe(p.data),extra:[p.categoria,p.sub,p.municipio].filter(Boolean).join(' · ')}));
+      add('Embargos SEMAD GO',goIt.length?'NC':'C',goIt,`Fonte: SIGA-GO, camada pública de embargos estaduais (cópia de ${EMBGO_IDX&&EMBGO_IDX.atualizado?fdate(EMBGO_IDX.atualizado+'T12:00:00Z'):'—'}).`)}}
   const icm=crit('Embargos ICMBio',arc.icmbio,p=>({titulo:`Embargo ICMBio - AI ${p.numero_ai||''}${p.serie?'-'+p.serie:''}`,id:p.vw_pk||p.objectid||'',data:dataDe(p.data_auto),extra:[p.nome_uc,p.municipio&&(p.municipio+'/'+(p.uf||''))].filter(Boolean).join(' · ')}));
   estadual('LDI - Lista de Desmatamento Ilegal (SEMAS PA)','PA','semas.pa.gov.br');
   estadual('Embargo SEDAM RO','RO','sedam.ro.gov.br');
@@ -615,7 +635,7 @@ async function buscar(){
   C.forEach(c=>c.itens.sort((a,b)=>(a.ano||0)-(b.ano||0)||b.ha-a.ha));
   S.criterios=C;
   // camadas no mapa
-  S.embargos=ibama.concat(icm);S.protegidas=quil.concat(ti,ucIt,ass);
+  S.embargos=ibama.concat(icm,goIt);S.protegidas=quil.concat(ti,ucIt,ass);
   gEmb.clearLayers();gProt.clearLayers();
   S.embargos.forEach(e=>L.geoJSON(e.orig,{style:{color:'#b9741f',weight:2,dashArray:'5 4',fillOpacity:.3}}).bindPopup(e.titulo).addTo(gEmb));
   S.protegidas.forEach(e=>L.geoJSON(e.orig,{style:{color:'#7b4bb7',weight:2,fillOpacity:.15}}).bindPopup(e.titulo).addTo(gProt));
@@ -887,7 +907,7 @@ $('bPdf').addEventListener('click',async()=>{
   const cab=(t)=>{doc.addImage(LOGO,'PNG',M,1.5,13.5,13.2);doc.setFillColor(183,133,79);doc.rect(0,16,PW,1.2,'F');doc.setTextColor(28,27,25);doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text(t,M+17,10.5);
     doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(102,98,90);doc.text(`${$('nome').value||'Imóvel'}  ·  CAR ${$('car').value||'—'}  ·  ${$('mun').value||''}`,M,21.5);doc.setTextColor(23,35,29)};
   const pe=(p)=>{doc.setFillColor(183,133,79);doc.rect(0,PH-1.2,PW,1.2,'F');doc.setFontSize(7.5);doc.setTextColor(93,107,99);
-    doc.text(doc.splitTextToSize('Fontes: PRODES (INPE/TerraBrasilis); MapBiomas Alerta; SICAR; IBAMA; ICMBio; FUNAI; INCRA; CNUC/SFB; Landsat e Sentinel-2 (Planetary Computer); CBERS (INPE/BDC).',PW-2*M),M,PH-9);
+    doc.text(doc.splitTextToSize('Fontes: PRODES (INPE/TerraBrasilis); MapBiomas Alerta; SICAR; IBAMA; ICMBio; SEMAD-GO (SIGA); FUNAI; INCRA; CNUC/SFB; Landsat e Sentinel-2 (Planetary Computer); CBERS (INPE/BDC).',PW-2*M),M,PH-9);
     doc.text(`R.A AgroTec Soluções Rurais · WhatsApp (62) 99415-5001 · Triagem automática: requer conferência nas fontes oficiais e avaliação técnica · p. ${p}`,M,PH-4.5);doc.setTextColor(23,35,29)};
   let pg=1;const novaPag=t=>{if(pg>1)doc.addPage();cab(t)};const fim=()=>{pe(pg);pg++};
   const serial=(crypto.randomUUID?crypto.randomUUID():String(Date.now()));
@@ -981,7 +1001,7 @@ $('bPdf').addEventListener('click',async()=>{
   const sz=PH-16-30;doc.addImage(imgMapa,'JPEG',M,25,sz,sz);
   let x=M+sz+8;y=30;const cw=PW-x-M;
   doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Legenda',x,y);y+=5;doc.setFont('helvetica','normal');doc.setFontSize(8.5);
-  [[[255,212,0],'Limite do imóvel (CAR)'],[[255,59,48],'Desmatamento PRODES no imóvel'],[[255,157,46],'Embargo IBAMA / ICMBio'],[[195,155,255],'TI / UC / Quilombola / Assentamento']].forEach(([c,t])=>{doc.setDrawColor(...c);doc.setLineWidth(.8);doc.rect(x,y-2.8,4,3);doc.text(t,x+6,y);y+=5});
+  [[[255,212,0],'Limite do imóvel (CAR)'],[[255,59,48],'Desmatamento PRODES no imóvel'],[[255,157,46],'Embargo IBAMA / ICMBio / SEMAD-GO'],[[195,155,255],'TI / UC / Quilombola / Assentamento']].forEach(([c,t])=>{doc.setDrawColor(...c);doc.setLineWidth(.8);doc.rect(x,y-2.8,4,3);doc.text(t,x+6,y);y+=5});
   doc.setLineWidth(.2);y+=3;
   doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Alertas PRODES no imóvel',x,y);y+=5;doc.setFontSize(8);
   doc.text('#',x,y);doc.text('Fonte',x+9,y);doc.text('Ano',x+44,y);doc.text('Data img.',x+56,y);doc.text('No imóvel (ha)',x+cw,y,{align:'right'});y+=1.5;doc.setDrawColor(200);doc.line(x,y,x+cw,y);y+=4;
