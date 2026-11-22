@@ -201,7 +201,7 @@ footer p{margin:6px 0 0;font-size:13px;line-height:1.6;max-width:860px}
     <h1>Diagnóstico socioambiental do <em>imóvel rural</em> em minutos</h1>
     <p class="lead">Desmatamento PRODES e MapBiomas, embargos, terras indígenas, unidades de conservação e imagens de satélite de 1985 até hoje — tudo a partir do número do CAR, com relatório em PDF.</p>
     <div class="search">
-      <input type="text" id="codCar" placeholder="Cole aqui o nº do recibo do CAR" maxlength="50" autocomplete="off" spellcheck="false" aria-label="Número do recibo do CAR">
+      <input type="text" id="codCar" placeholder="Cole aqui o nº do recibo do CAR" maxlength="400" autocomplete="off" spellcheck="false" aria-label="Número do recibo do CAR">
       <button id="bCar">Analisar imóvel</button>
     </div>
     <div class="hint">Número do recibo do CAR federal (SICAR) · <button type="button" id="bUpl">ou envie o limite em shapefile, KML ou GeoJSON</button></div>
@@ -416,23 +416,38 @@ function areaM2(g){const geom=g.type==='Feature'?g.geometry:g;if(!geom)return 0;
 const haDe=g=>g?areaM2(g)/1e4:0;
 
 const SICAR='https://geoserver.car.gov.br/geoserver/sicar/wfs';
-function normCar(v){return v.toUpperCase().replace(/[\s.]/g,'').replace(/[–—]/g,'-')}
+/* localiza o código do CAR em qualquer texto colado (com ou sem pontos, hífens, espaços, "CAR:", quebras de linha, caracteres invisíveis) */
+const UFS='AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' ');
+function extrairCar(v){
+  const c=String(v||'').normalize('NFKC').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const re=/(?=([A-Z]{2})(\d{7})([0-9A-FO]{32}))/g;let m;
+  while((m=re.exec(c))!==null){if(UFS.includes(m[1]))return `${m[1]}-${m[2]}-${m[3].replace(/O/g,'0')}`;re.lastIndex++}
+  return null;
+}
+function normCar(v){return extrairCar(v)||String(v||'').toUpperCase().replace(/[^A-Z0-9-]/g,'')}
 /* formato do recibo federal: UF-IBGE-XXXX.XXXX.XXXX.XXXX.XXXX.XXXX.XXXX.XXXX */
 function fmtCar(v){
-  const c=v.toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const uf=c.slice(0,2).replace(/[^A-Z]/g,''),ibge=c.slice(2,9).replace(/\D/g,''),h=c.slice(9,41).replace(/[^0-9A-F]/g,'');
+  const x=extrairCar(v);
+  if(x){const [uf,ib,h]=x.split('-');return `${uf}-${ib}-${h.match(/.{4}/g).join('.')}`}
+  const c=String(v||'').normalize('NFKC').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const uf=c.slice(0,2),ibge=c.slice(2,9),h=c.slice(9,41);
   let out=uf;
   if(c.length>2)out+='-'+ibge;
   if(c.length>9)out+='-'+(h.match(/.{1,4}/g)||[]).join('.');
   return out;
 }
-$('codCar').addEventListener('input',e=>{const el=e.target,antes=el.value,pos=el.selectionStart,nAntes=antes.slice(0,pos).replace(/[^A-Za-z0-9]/g,'').length;
-  const f=fmtCar(antes);if(f===antes)return;el.value=f;
-  let i=0,n=0;while(i<f.length&&n<nAntes){if(/[A-Z0-9]/.test(f[i]))n++;i++}
-  try{el.setSelectionRange(i,i)}catch(x){}});
+function aplicarFmt(el){const antes=el.value,pos=el.selectionStart??antes.length,nAntes=antes.slice(0,pos).replace(/[^A-Za-z0-9]/g,'').length;
+  const x=extrairCar(antes);
+  if(x){const f=fmtCar(x);if(f!==antes){el.value=f;try{el.setSelectionRange(f.length,f.length)}catch(e){}}return true}
+  if(/^[A-Za-z]{2}/.test(antes.trim())){const f=fmtCar(antes);if(f!==antes){el.value=f;let i=0,n=0;while(i<f.length&&n<nAntes){if(/[A-Z0-9]/.test(f[i]))n++;i++}try{el.setSelectionRange(i,i)}catch(e){}}}
+  return false}
+$('codCar').addEventListener('input',e=>aplicarFmt(e.target));
+$('codCar').addEventListener('paste',e=>{const t=(e.clipboardData||window.clipboardData)?.getData('text');if(!t)return;
+  const x=extrairCar(t);if(!x)return;e.preventDefault();e.target.value=fmtCar(x);status('st1','CAR reconhecido: '+fmtCar(x)+'. Toque em "Analisar imóvel".')});
 async function buscarCar(){
   const cod=normCar($('codCar').value);
-  if(!/^[A-Z]{2}-\d{7}-[0-9A-F]{32}$/.test(cod)){status('st1','Número do CAR incompleto ou inválido. Formato do recibo: GO-5208905-F496.4288.1887.4B9C.BBA5.7AD8.1323.48B1',true);return}
+  if(!/^[A-Z]{2}-\d{7}-[0-9A-F]{32}$/.test(cod)){const n=String($('codCar').value).replace(/[^A-Za-z0-9]/g,'').length;status('st1',n<41?`Número do CAR incompleto: faltam ${41-n} caractere(s). O código tem a sigla do estado, 7 números do município e mais 32 letras/números.`:'Não encontrei um código de CAR válido no texto. Confira se copiou o número completo do recibo.',true);return}
+  $('codCar').value=fmtCar(cod);
   const uf=cod.slice(0,2).toLowerCase();
   $('bCar').disabled=true;$('bCar').textContent='Analisando…';status('st1','Consultando o SICAR…');
   try{
