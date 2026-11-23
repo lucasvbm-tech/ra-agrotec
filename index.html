@@ -361,7 +361,7 @@ document.getElementById('bTecOk').addEventListener('click',async()=>{const c=doc
 document.getElementById('codTec').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('bTecOk').click()});
 document.getElementById('bSairTec').addEventListener('click',()=>{TEC=false;try{localStorage.removeItem('ra_tec')}catch(e){}aplicarModo()});
 if(/[?&#]tecnico\b/.test(location.search+location.hash)&&!TEC)abrirTec();
-const S={imovel:null,uniao:null,alertas:[],embargos:[],protegidas:[],criterios:[],car:null,uf:'',alertasArquivo:null,cenas:[],sel:null};
+const S={imovel:null,uniao:null,alertas:[],embargos:[],protegidas:[],criterios:[],car:null,uf:'',alertasArquivo:null,cenas:[],sel:null};window.S=S;
 aplicarModo();
 const fmt=(n,d=2)=>n.toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fdate=s=>{if(!s)return'';const d=new Date(s);return isNaN(d)?String(s):d.toLocaleDateString('pt-BR',{timeZone:'UTC'})};
@@ -721,8 +721,7 @@ async function buscarCenas(ano,pt,todo){
     return (await r.json()).features||[];
   };
   let fs=[];
-  if(!s2&&ano>=2003){fs=await tentar([{op:'in',args:[{property:'platform'},['landsat-4','landsat-5','landsat-8','landsat-9']]}])}
-  if(!fs.length)fs=await tentar();
+  fs=await tentar(); // Landsat 7 entra também: as faixas sem dados são preenchidas com outras datas
   return fs.map(f=>({col,id:f.id,data:f.properties.datetime,nuvem:f.properties['eo:cloud_cover'],plat:f.properties.platform||'',s2}));
 }
 function paramsTile(c){
@@ -792,9 +791,24 @@ async function renderCena(cv,c,W){
   const H=W;cv.width=W;cv.height=H;
   const ctx=cv.getContext('2d');ctx.fillStyle='#d9d5c8';ctx.fillRect(0,0,W,H);
   const {bb,alvo}=bboxAlvo();const jan=janela(bb,W,H,c&&c.s2?16:15);
-  if(c)await desenharBase(ctx,W,H,jan,(z,x,y)=>tileUrl(c,z,x,y));
+  const fill=(c&&c.fill)||[];
+  if(c&&fill.length){ // preenche as faixas do Landsat 7 pixel a pixel, pulando nuvem das outras datas
+    const camada=async o=>{const k=document.createElement('canvas');k.width=W;k.height=H;await desenharBase(k.getContext('2d'),W,H,jan,(z,x,y)=>tileUrl(o,z,x,y));return k.getContext('2d').getImageData(0,0,W,H).data};
+    try{
+      const [P,...F]=await Promise.all([c,...fill].map(camada));
+      const out=ctx.getImageData(0,0,W,H),o=out.data;
+      for(let i=0;i<o.length;i+=4){
+        let src=P[i+3]>=128?P:null;
+        if(!src){let v=[];for(const f of F)if(f[i+3]>=128)v.push(f); // mediana das datas válidas: descarta nuvem e sombra
+          const lim=v.filter(f=>(f[i]+f[i+1]+f[i+2])/3<185);if(lim.length)v=lim;
+          if(v.length){v.sort((a,b)=>(a[i]+a[i+1]+a[i+2])-(b[i]+b[i+1]+b[i+2]));src=v[(v.length-1)>>1]}}
+        if(src){o[i]=src[i];o[i+1]=src[i+1];o[i+2]=src[i+2];o[i+3]=255}
+      }
+      ctx.putImageData(out,0,0);
+    }catch(e){for(const f of fill.slice().reverse())await desenharBase(ctx,W,H,jan,(z,x,y)=>tileUrl(f,z,x,y));await desenharBase(ctx,W,H,jan,(z,x,y)=>tileUrl(c,z,x,y))}
+  }else if(c)await desenharBase(ctx,W,H,jan,(z,x,y)=>tileUrl(c,z,x,y));
   sobreposicoes(ctx,jan,alvo);
-  rodape(ctx,W,H,jan,(bb[1]+bb[3])/2,c?`${nomeSat(c)} · ${fdate(c.data)}`:'Sem cena');
+  rodape(ctx,W,H,jan,(bb[1]+bb[3])/2,c?`${nomeSat(c)} · ${fdate(c.data)}${fill.length?' (faixas preenchidas)':''}`:'Sem cena');
   if(!TEC){ctx.save();ctx.font='700 30px Inter,sans-serif';ctx.fillStyle='rgba(255,255,255,.35)';ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=1;ctx.rotate(-0.42);
     for(let yy=-W;yy<W*1.6;yy+=150)for(let xx=-W;xx<W*1.6;xx+=330){ctx.fillText('R.A AgroTec · prévia',xx,yy);ctx.strokeText('R.A AgroTec · prévia',xx,yy)}ctx.restore()}
 }
@@ -820,19 +834,37 @@ function mascaraAlvo(bb,gx){ // pixels da amostra (grade lon/lat do bbox) que ca
     let d=false;try{d=turf.booleanPointInPolygon([lon,lat],g)}catch(e){}if(d){m[y*AMOSTRA+x]=1;n++}}
   if(n<20)m.fill(1);return m;
 }
-async function avaliarCena(c,bb,mask){
+function marco(c){ // 2008: favorece a data mais próxima de 22/07/2008 (marco do Código Florestal)
+  const d=new Date(c.data);if(d.getUTCFullYear()!==2008)return 0;return Math.abs(new Date('2008-07-22')-d)/864e5/60;
+}
+function bbQuadro(bb){ // área realmente exibida no quadro quadrado
+  const cx=(bb[0]+bb[2])/2,cy=(bb[1]+bb[3])/2,k=Math.cos(cy*Math.PI/180);
+  const h=Math.max(bb[3]-bb[1],(bb[2]-bb[0])*k)/2;return[cx-h/k,cy-h,cx+h/k,cy+h];
+}
+async function avaliarCena(c,bb,mask){ // mask: 1 = dentro do imóvel/alerta; o resto do quadro também é medido
   const p=c.s2?'assets=B02&rescale=0,10000':'assets=blue&rescale=7273,43636'; // azul em reflectância ~0–1
   const u=`${PC}/data/v1/item/bbox/${bb.map(v=>v.toFixed(6)).join(',')}/${AMOSTRA}x${AMOSTRA}.png?collection=${c.col}&item=${encodeURIComponent(c.id)}&${p}&nodata=0`;
   const im=await carregaImg(u);if(!im)return{nuvem:100,falha:100,score:999};
   const cv=document.createElement('canvas');cv.width=cv.height=AMOSTRA;const x=cv.getContext('2d');x.drawImage(im,0,0,AMOSTRA,AMOSTRA);
   let d;try{d=x.getImageData(0,0,AMOSTRA,AMOSTRA).data}catch(e){return{nuvem:0,falha:0,score:0}}
   const off=c.s2&&String(c.data)>='2022-01-25'?0.1:0; // Sentinel-2 com processamento ≥ 04.00 tem +0,1 de deslocamento
-  let tot=0,nv=0,fl=0;const vals=[];
-  for(let i=0;i<AMOSTRA*AMOSTRA;i++){if(!mask[i])continue;tot++;const r=d[i*4],a=d[i*4+3];
-    if(a<128||r===0){fl++;continue}const refl=r/255-off;vals.push(refl);if(refl>0.10)nv++}
+  let tot=0,nv=0,fl=0,qt=0,qn=0,qf=0;const vals=[];
+  for(let i=0;i<AMOSTRA*AMOSTRA;i++){const r=d[i*4],a=d[i*4+3],gap=a<128||r===0,refl=r/255-off,cl=!gap&&refl>0.10;
+    qt++;if(gap)qf++;else if(cl)qn++;
+    if(!mask[i])continue;tot++;if(gap){fl++;continue}vals.push(refl);if(cl)nv++}
   vals.sort((a,b)=>a-b);const med=vals.length?vals[vals.length>>1]:0;
   const nuvem=tot?nv/tot*100:0,falha=tot?fl/tot*100:0,nevoa=Math.max(0,(med-0.05))*300;
-  return{nuvem,falha,nevoa,score:nuvem+falha*2+nevoa};
+  const nQ=qt?qn/qt*100:0,fQ=qt?qf/qt*100:0,l7=c.plat==='landsat-7';
+  // faixas do Landsat 7 são preenchidas com outras datas, por isso pesam menos
+  return{nuvem,falha,nevoa,nQ,fQ,score:nuvem+falha*(l7?0.15:2)+nevoa+nQ*0.6+fQ*(l7?0.03:0.5)+(l7?0.5:0)+marco(c)};
+}
+function prepararL7(s){ // Landsat 7 (2003+): faixas sem dados preenchidas com outras datas limpas
+  const boas=s.opcoes.filter(x=>/^landsat/.test(x.plat)&&x.base!=null&&x.nLoc<20&&x.nQ<35).sort((a,b)=>(a.nLoc+a.nQ*0.5)-(b.nLoc+b.nQ*0.5));
+  s.opcoes.forEach(o=>{if(o.base==null){o.score=null;o.fill=[];return}
+    const dt=x=>Math.abs(new Date(x.data)-new Date(o.data))/864e5;
+    o.fill=o.plat==='landsat-7'&&s.ano>=2003?boas.filter(x=>x!==o).sort((a,b)=>(a.nLoc+a.nQ*0.5+dt(a)/45)-(b.nLoc+b.nQ*0.5+dt(b)/45)).slice(0,5):[];
+    o.score=o.base+(o.plat==='landsat-7'&&s.ano>=2003&&o.fill.length<2?o.fLoc*1.8+(o.fQ||0)*0.45:0)}); // sem preenchimento: faixas voltam a pesar
+  s.opcoes.sort((a,b)=>(a.score??500)-(b.score??500)||(a.nuvem||0)-(b.nuvem||0));
 }
 async function gerar(){
   if(!S.uniao)return;
@@ -841,24 +873,25 @@ async function gerar(){
   $('bGerar').disabled=true;
   const c=turf.centerOfMass(S.uniao).geometry.coordinates;
   const {bb}=bboxAlvo();const pt=[(bb[0]+bb[2])/2,(bb[1]+bb[3])/2];
-  const gA=$('alvo').value==='imovel'?S.uniao:S.alertas.find(a=>a.id==$('alvo').value).geom,bbA=turf.bbox(gA),mask=mascaraAlvo(bbA);
-  status('st2','Buscando e avaliando cenas: nuvem e falhas medidas dentro do imóvel…');
+  const bbA=bbQuadro(bb),mask=mascaraAlvo(bbA);
+  status('st2','Buscando e avaliando cenas: nuvem e falhas medidas no imóvel e no quadro inteiro…');
   S.cenas=anos.map(ano=>({ano,opcoes:[],idx:0}));
   $('grid').innerHTML=S.cenas.map((s,i)=>`<div class="scene"><canvas id="cv${i}"></canvas><div class="meta"><b>${s.ano}</b><select id="op${i}" aria-label="Cena de ${s.ano}"><option>Buscando…</option></select></div></div>`).join('');
   let feitos=0;const tot=S.cenas.length;
   await Promise.all(S.cenas.map(async(s,i)=>{
     try{s.opcoes=await buscarCenas(s.ano,pt)}catch(e){s.opcoes=[];s.erro=e.message}
     // mede nuvem e falhas no imóvel nas melhores candidatas e reordena
-    const cand=s.opcoes.slice(0,8);
-    for(const o of cand){const a=await avaliarCena(o,bbA,mask);Object.assign(o,{nLoc:a.nuvem,fLoc:a.falha,nevL:a.nevoa||0,score:a.score});if(a.score<1)break}
-    s.opcoes.sort((a,b)=>(a.score??500)-(b.score??500)||(a.nuvem||0)-(b.nuvem||0));
+    const cand=s.opcoes.slice(0,12);
+    await Promise.all(cand.map(async o=>{const a=await avaliarCena(o,bbA,mask);Object.assign(o,{nLoc:a.nuvem,fLoc:a.falha,nevL:a.nevoa||0,nQ:a.nQ||0,fQ:a.fQ||0,base:a.score})}));
+    prepararL7(s);
     if(s.opcoes[0]&&s.opcoes[0].score>=8&&$('periodo').value==='seco'&&s.ano!==2008){ // procura no ano inteiro
       try{const ids=new Set(s.opcoes.map(o=>o.id));const extra=(await buscarCenas(s.ano,pt,true)).filter(o=>!ids.has(o.id)).slice(0,8);
-        for(const o of extra){const a=await avaliarCena(o,bbA,mask);Object.assign(o,{nLoc:a.nuvem,fLoc:a.falha,nevL:a.nevoa||0,score:a.score});if(a.score<1)break}
-        s.opcoes=s.opcoes.concat(extra).sort((a,b)=>(a.score??500)-(b.score??500)||(a.nuvem||0)-(b.nuvem||0))}catch(e){}
+        await Promise.all(extra.map(async o=>{const a=await avaliarCena(o,bbA,mask);Object.assign(o,{nLoc:a.nuvem,fLoc:a.falha,nevL:a.nevoa||0,nQ:a.nQ||0,fQ:a.fQ||0,base:a.score})}));
+        s.opcoes=s.opcoes.concat(extra);prepararL7(s)}catch(e){}
     }
+    // Landsat 7 (2003+): faixas sem dados preenchidas com as outras datas limpas do mesmo ano
     const sel=$('op'+i);
-    const rot=o=>o.score==null?`nuvem na cena ${fmt(o.nuvem||0,0)}% · não avaliada no imóvel`:(o.score<3?'limpa no imóvel':`nuvem/névoa no imóvel ${fmt(Math.min(100,o.nLoc+o.nevL),0)}%${o.fLoc>=0.5?` · falhas ${fmt(o.fLoc,0)}%`:''}`);
+    const rot=o=>o.score==null?`nuvem na cena ${fmt(o.nuvem||0,0)}% · não avaliada`:(o.nLoc+o.nevL<2&&(o.nQ||0)<3&&((o.plat==='landsat-7'&&o.fill&&o.fill.length)||o.fLoc<0.5)?(o.fill&&o.fill.length?'limpa · faixas preenchidas':'limpa'):`nuvem no imóvel ${fmt(Math.min(100,o.nLoc+o.nevL),0)}% · no quadro ${fmt(o.nQ||0,0)}%${o.fLoc>=0.5&&!(o.fill&&o.fill.length)?` · faixas sem dados ${fmt(o.fLoc,0)}%`:''}`);
     sel.innerHTML=s.opcoes.length?s.opcoes.map((o,j)=>`<option value="${j}">${fdate(o.data)} · ${nomeSat(o)} · ${rot(o)}</option>`).join(''):`<option>${s.erro?'Erro: '+s.erro:'Nenhuma cena encontrada'}</option>`;
     sel.addEventListener('change',async()=>{s.idx=+sel.value;await renderCena($('cv'+i),s.opcoes[s.idx],640);atualizarComparador()});
     await renderCena($('cv'+i),s.opcoes[0],640);
@@ -866,7 +899,7 @@ async function gerar(){
   }));
   const ruins=S.cenas.filter(c=>c.opcoes[0]&&c.opcoes[0].score>=8).map(c=>c.ano);
   const l7=S.cenas.filter(c=>c.opcoes[0]&&c.opcoes[0].plat==='landsat-7'&&c.ano>=2003).map(c=>c.ano),outros=ruins.filter(a=>!l7.includes(a));
-  status('st2',`${tot} cena(s) prontas — escolhida a imagem mais limpa de cada ano dentro do imóvel.`+(l7.length?` Em ${l7.join(', ')} só havia Landsat 7, que tem faixas sem dados desde 2003 (falha do satélite); foi escolhida a data com menos falhas.`:'')+(outros.length?` Em ${outros.join(', ')} nenhuma cena do ano ficou totalmente limpa sobre o imóvel — veja as outras datas no seletor.`:''));
+  status('st2',`${tot} cena(s) prontas — escolhida a imagem mais limpa de cada ano, sem nuvem no imóvel e no entorno.`+(l7.length?` Em ${l7.join(', ')} a melhor imagem foi do Landsat 7, que tem faixas sem dados desde 2003 (falha do satélite); as faixas foram preenchidas com outras datas limpas do mesmo período.`:'')+(outros.length?` Em ${outros.join(', ')} nenhuma cena do ano ficou totalmente limpa sobre o imóvel — veja as outras datas no seletor.`:''));
   $('bGerar').disabled=false;$('bPng').disabled=false;$('bPdf').disabled=false;
   montarComparador();
 }
