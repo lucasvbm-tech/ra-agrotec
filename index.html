@@ -162,6 +162,11 @@ body.publico .wmz{position:relative}
 body.publico .wmz::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:600;background:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='190'%3E%3Ctext x='10' y='120' transform='rotate(-24 150 95)' font-family='Inter,Arial' font-weight='700' font-size='19' fill='white' fill-opacity='.38' stroke='black' stroke-opacity='.18' stroke-width='.6'%3ER.A AgroTec · prévia%3C/text%3E%3C/svg%3E") repeat;border-radius:inherit}
 body.publico canvas,body.publico img{-webkit-user-drag:none;user-select:none;-webkit-touch-callout:none}
 .lock::before{content:"🔒 ";}
+.soTec{display:none}body.tec .soTec{display:block}
+.pk{display:flex;align-items:center;gap:6px;font-size:13px;margin-top:6px;color:#3d4a43}.pk input{width:18px;height:18px;accent-color:#b7854f}
+.pedido{margin-top:16px;border:1px solid #e3d6c2;background:#fbf7f0;border-radius:12px;padding:14px}
+.pedido h3{margin:0 0 4px}.cod{font:700 17px/1.5 ui-monospace,Menlo,monospace;letter-spacing:.5px;word-break:break-all;background:#fff;border:1px dashed #b7854f;border-radius:8px;padding:10px;margin:10px 0;color:#17231d}
+.abrirPed{margin:14px 0;border:1px solid #cfe0d6;background:#f3f8f5;border-radius:12px;padding:14px}
 .tecbadge{display:none;align-items:center;gap:8px;font:700 12px Inter;background:var(--ocl);color:var(--oc2);padding:6px 10px;border-radius:99px}
 body.tec .tecbadge{display:inline-flex}
 .tecbadge button{min-height:0;padding:3px 8px;font-size:12px;background:#fff;color:var(--ink)}
@@ -263,6 +268,9 @@ footer p{margin:6px 0 0;font-size:13px;line-height:1.6;max-width:860px}
       <option value="s2">Sentinel-2 (10 m)</option>
       <option value="ls">Landsat (30 m)</option></select></div>
   </div>
+  <div class="abrirPed soTec"><b>Abrir pedido de cliente</b><p class="note" style="margin:4px 0 8px">Cole o código que o cliente mandou no WhatsApp. O app abre o imóvel e as mesmas imagens que ele escolheu, prontas para exportar em GeoTIFF.</p>
+    <div class="row" style="grid-template-columns:1fr auto;align-items:end"><input type="text" id="codPed" placeholder="P-XXXX-XXXX-…" autocomplete="off" autocapitalize="characters"><button id="bPed" type="button">Abrir pedido</button></div>
+    <div class="status" id="stPed"></div></div>
   <label for="anos">Anos (separados por vírgula). 2008 usa cenas até 22/07/2008 (marco do Código Florestal).</label>
   <input type="text" id="anos" value="2000, 2005, 2008, 2012, 2016, 2020, 2024">
   <div class="btns">
@@ -272,6 +280,12 @@ footer p{margin:6px 0 0;font-size:13px;line-height:1.6;max-width:860px}
   <div class="prog"><div id="pg"></div></div>
   <div class="status" id="st2"></div>
   <div class="grid" id="grid"></div>
+  <div class="pedido" id="pedBox" hidden>
+    <h3>Pedido das imagens em GeoTIFF</h3>
+    <p class="note" style="margin:0">Marque em cada ano as imagens que quer receber (troque a data no seletor, se preferir outra) e gere o código do pedido.</p>
+    <div class="btns"><button id="bCodPed" type="button">Gerar código do pedido</button><button class="sec soTec" id="bTif" type="button">Exportar GeoTIFF (.zip)</button></div>
+    <div id="pedOut"></div><div class="status" id="stTif"></div>
+  </div>
   <h3>Comparar duas datas</h3>
   <div class="row" style="max-width:640px">
     <div><label for="cA">Antes</label><select id="cA"></select></div>
@@ -350,7 +364,9 @@ function msgCompra(item){return `Olá! Fiz a consulta no app R.A AgroTec e quero
 function abrirWA(msg){const a=document.createElement('a');a.href=waLink(msg);a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove()}
 const ITENS={bPdf:'o relatório completo em PDF',bShp:'o shapefile do imóvel e dos alertas',bKml:'o arquivo KML do imóvel e dos alertas',bPng:'as imagens da análise multitemporal'};
 document.addEventListener('click',e=>{if(TEC)return;const b=e.target.closest('#bPdf,#bShp,#bKml,#bPng,[data-qgis],.arq a');if(!b)return;
-  e.preventDefault();e.stopImmediatePropagation();abrirWA(msgCompra(ITENS[b.id]||'as imagens de satélite do INPE em alta resolução'))},true);
+  e.preventDefault();e.stopImmediatePropagation();
+  if(b.id==='bPng'&&S.cenas&&S.cenas.length&&typeof gerarCodigoPedido==='function'){try{abrirWA(msgPedido(gerarCodigoPedido()));return}catch(x){}}
+  abrirWA(msgCompra(ITENS[b.id]||'as imagens de satélite do INPE em alta resolução'))},true);
 document.addEventListener('contextmenu',e=>{if(!TEC&&e.target.closest('canvas,img,#map'))e.preventDefault()});
 document.addEventListener('keydown',e=>{if(!TEC&&(e.ctrlKey||e.metaKey)&&['p','s'].includes(e.key.toLowerCase())){e.preventDefault();abrirWA(msgCompra('o relatório completo em PDF'))}});
 function abrirTec(){document.getElementById('mTec').classList.add('on');setTimeout(()=>document.getElementById('codTec').focus(),50)}
@@ -463,7 +479,7 @@ async function buscarCar(){
   }catch(err){status('st1','Erro: '+err.message,true)}
   $('bCar').disabled=false;$('bCar').textContent='Analisar imóvel';
 }
-$('bCar').addEventListener('click',buscarCar);
+$('bCar').addEventListener('click',()=>{S.pedido=null;buscarCar()});
 $('codCar').addEventListener('keydown',e=>{if(e.key==='Enter')buscarCar()});
 $('fImovel').addEventListener('change',async e=>{
   const f=e.target.files[0];if(!f)return;
@@ -787,8 +803,8 @@ function bboxAlvo(){
   const bb=turf.bbox(g),dx=(bb[2]-bb[0])*0.18+0.002,dy=(bb[3]-bb[1])*0.18+0.002;
   return{bb:[bb[0]-dx,bb[1]-dy,bb[2]+dx,bb[3]+dy],alvo:v==='imovel'?null:+v};
 }
-async function renderCena(cv,c,W){
-  const H=W;cv.width=W;cv.height=H;
+async function renderCena(cv,c,W,op){
+  op=op||{};const H=W;cv.width=W;cv.height=H;
   const ctx=cv.getContext('2d');ctx.fillStyle='#d9d5c8';ctx.fillRect(0,0,W,H);
   const {bb,alvo}=bboxAlvo();const jan=janela(bb,W,H,c&&c.s2?16:15);
   const fill=(c&&c.fill)||[];
@@ -807,8 +823,11 @@ async function renderCena(cv,c,W){
       ctx.putImageData(out,0,0);
     }catch(e){for(const f of fill.slice().reverse())await desenharBase(ctx,W,H,jan,(z,x,y)=>tileUrl(f,z,x,y));await desenharBase(ctx,W,H,jan,(z,x,y)=>tileUrl(c,z,x,y))}
   }else if(c)await desenharBase(ctx,W,H,jan,(z,x,y)=>tileUrl(c,z,x,y));
+  if(op.limpa)return jan;
   sobreposicoes(ctx,jan,alvo);
+  if(op.semRodape)return jan;
   rodape(ctx,W,H,jan,(bb[1]+bb[3])/2,c?`${nomeSat(c)} · ${fdate(c.data)}${fill.length?' (faixas preenchidas)':''}`:'Sem cena');
+  return jan;
   if(!TEC){ctx.save();ctx.font='700 30px Inter,sans-serif';ctx.fillStyle='rgba(255,255,255,.35)';ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=1;ctx.rotate(-0.42);
     for(let yy=-W;yy<W*1.6;yy+=150)for(let xx=-W;xx<W*1.6;xx+=330){ctx.fillText('R.A AgroTec · prévia',xx,yy);ctx.strokeText('R.A AgroTec · prévia',xx,yy)}ctx.restore()}
 }
@@ -876,7 +895,7 @@ async function gerar(){
   const bbA=bbQuadro(bb),mask=mascaraAlvo(bbA);
   status('st2','Buscando e avaliando cenas: nuvem e falhas medidas no imóvel e no quadro inteiro…');
   S.cenas=anos.map(ano=>({ano,opcoes:[],idx:0}));
-  $('grid').innerHTML=S.cenas.map((s,i)=>`<div class="scene"><canvas id="cv${i}"></canvas><div class="meta"><b>${s.ano}</b><select id="op${i}" aria-label="Cena de ${s.ano}"><option>Buscando…</option></select></div></div>`).join('');
+  $('grid').innerHTML=S.cenas.map((s,i)=>`<div class="scene"><canvas id="cv${i}"></canvas><div class="meta"><b>${s.ano}</b><select id="op${i}" aria-label="Cena de ${s.ano}"><option>Buscando…</option></select><label class="pk"><input type="checkbox" id="pk${i}" ${!S.pedido||S.pedido.cenas.some(c=>c.ano===s.ano)?'checked':''}> Incluir no pedido</label></div></div>`).join('');
   let feitos=0;const tot=S.cenas.length;
   await Promise.all(S.cenas.map(async(s,i)=>{
     try{s.opcoes=await buscarCenas(s.ano,pt)}catch(e){s.opcoes=[];s.erro=e.message}
@@ -893,14 +912,25 @@ async function gerar(){
     const sel=$('op'+i);
     const rot=o=>o.score==null?`nuvem na cena ${fmt(o.nuvem||0,0)}% · não avaliada`:(o.nLoc+o.nevL<2&&(o.nQ||0)<3&&((o.plat==='landsat-7'&&o.fill&&o.fill.length)||o.fLoc<0.5)?(o.fill&&o.fill.length?'limpa · faixas preenchidas':'limpa'):`nuvem no imóvel ${fmt(Math.min(100,o.nLoc+o.nevL),0)}% · no quadro ${fmt(o.nQ||0,0)}%${o.fLoc>=0.5&&!(o.fill&&o.fill.length)?` · faixas sem dados ${fmt(o.fLoc,0)}%`:''}`);
     sel.innerHTML=s.opcoes.length?s.opcoes.map((o,j)=>`<option value="${j}">${fdate(o.data)} · ${nomeSat(o)} · ${rot(o)}</option>`).join(''):`<option>${s.erro?'Erro: '+s.erro:'Nenhuma cena encontrada'}</option>`;
+    s.idx=0;
+    const ped=S.pedido&&S.pedido.cenas.find(c=>c.ano===s.ano);
+    if(ped){let j=s.opcoes.findIndex(o=>platCod(o)===ped.plat&&o.data.slice(0,10)===ped.data);
+      if(j<0){try{const o=await cenaDoPedido(ped,pt);if(o){const a=await avaliarCena(o,bbA,mask);Object.assign(o,{nLoc:a.nuvem,fLoc:a.falha,nevL:a.nevoa||0,nQ:a.nQ||0,fQ:a.fQ||0,base:a.score});s.opcoes.push(o);prepararL7(s);j=s.opcoes.indexOf(o)}}catch(e){}}
+      if(j>=0)s.idx=j;else s.pedErro=true;
+      sel.innerHTML=s.opcoes.map((o,j)=>`<option value="${j}">${fdate(o.data)} · ${nomeSat(o)} · ${rot(o)}</option>`).join('');}
+    if(s.opcoes.length)sel.value=s.idx;
     sel.addEventListener('change',async()=>{s.idx=+sel.value;await renderCena($('cv'+i),s.opcoes[s.idx],640);atualizarComparador()});
-    await renderCena($('cv'+i),s.opcoes[0],640);
+    await renderCena($('cv'+i),s.opcoes[s.idx],640);
     $('pg').style.width=(++feitos/tot*100)+'%';
   }));
   const ruins=S.cenas.filter(c=>c.opcoes[0]&&c.opcoes[0].score>=8).map(c=>c.ano);
   const l7=S.cenas.filter(c=>c.opcoes[0]&&c.opcoes[0].plat==='landsat-7'&&c.ano>=2003).map(c=>c.ano),outros=ruins.filter(a=>!l7.includes(a));
   status('st2',`${tot} cena(s) prontas — escolhida a imagem mais limpa de cada ano, sem nuvem no imóvel e no entorno.`+(l7.length?` Em ${l7.join(', ')} a melhor imagem foi do Landsat 7, que tem faixas sem dados desde 2003 (falha do satélite); as faixas foram preenchidas com outras datas limpas do mesmo período.`:'')+(outros.length?` Em ${outros.join(', ')} nenhuma cena do ano ficou totalmente limpa sobre o imóvel — veja as outras datas no seletor.`:''));
   $('bGerar').disabled=false;$('bPng').disabled=false;$('bPdf').disabled=false;
+  $('pedBox').hidden=false;$('pedOut').innerHTML='';
+  if(S.pedido){const falt=S.cenas.filter(c=>c.pedErro).map(c=>c.ano);
+    status('stPed',falt.length?`Pedido aberto, mas não achei a imagem pedida em ${falt.join(', ')} — confira o seletor desses anos.`:`Pedido ${S.pedido.codigo} aberto: as imagens escolhidas pelo cliente estão selecionadas. Toque em "Exportar GeoTIFF".`,falt.length>0);
+    $('pedBox').scrollIntoView({behavior:'smooth',block:'center'})}
   montarComparador();
 }
 async function redesenharTudo(){
@@ -908,6 +938,116 @@ async function redesenharTudo(){
   await Promise.all(S.cenas.map((s,i)=>renderCena($('cv'+i),s.opcoes[s.idx],640)));
   atualizarComparador();status('st2','Pronto.');
 }
+
+/* ---------- pedido do cliente: código que carrega CAR + imagens escolhidas ---------- */
+const UFP='AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO'.split(' ');
+const PLATS=['landsat-4','landsat-5','landsat-7','landsat-8','landsat-9','sentinel-2a','sentinel-2b','sentinel-2c'];
+const platCod=o=>Math.max(0,PLATS.indexOf((o.plat||'').toLowerCase()));
+const B32='0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+function doy(d){const t=new Date(d+'T00:00:00Z');return Math.round((t-Date.UTC(t.getUTCFullYear(),0,1))/864e5)+1}
+function deDoy(ano,n){return new Date(Date.UTC(ano,0,n)).toISOString().slice(0,10)}
+function crcBits(b){let h=0x2c9;for(const x of b)h=((h*31)^(+x))&0x3ff;return h}
+function codificarPedido(car,cenas){
+  const m=car.match(/^([A-Z]{2})-(\d{7})-([0-9A-F]{32})$/);if(!m)throw new Error('CAR fora do padrão federal');
+  let b='';const put=(v,n)=>{b+=(v>>>0).toString(2).padStart(n,'0').slice(-n)};
+  put(1,3);put(UFP.indexOf(m[1]),5);put(+m[2],24);for(const ch of m[3])put(parseInt(ch,16),4);
+  put($('comp').value==='fc'?1:0,1);put($('periodo').value==='ano'?1:0,1);put($('sensor').value==='ls'?1:0,1);
+  put(cenas.length,4);cenas.forEach(c=>{put(c.ano-1984,6);put(c.plat,3);put(doy(c.data),9)});
+  put(crcBits(b),10);while(b.length%5)b+='0';
+  let t='';for(let i=0;i<b.length;i+=5)t+=B32[parseInt(b.slice(i,i+5),2)];
+  return 'P-'+t.match(/.{1,4}/g).join('-');
+}
+function decodificarPedido(cod){
+  const t=String(cod).toUpperCase().replace(/^.*?P-/,'').replace(/[^0-9A-Z]/g,'').replace(/O/g,'0').replace(/[IL]/g,'1');
+  let b='';for(const ch of t){const v=B32.indexOf(ch);if(v<0)throw new Error('código com caractere inválido');b+=v.toString(2).padStart(5,'0')}
+  let p=0;const get=n=>{const v=parseInt(b.slice(p,p+n),2);p+=n;return v};
+  if(get(3)!==1)throw new Error('código inválido');
+  const uf=UFP[get(5)],ib=String(get(24)).padStart(7,'0');let hx='';for(let i=0;i<32;i++)hx+=get(4).toString(16).toUpperCase();
+  const comp=get(1)?'fc':'nat',periodo=get(1)?'ano':'seco',sensor=get(1)?'ls':'s2';
+  const n=get(4),cenas=[];for(let i=0;i<n;i++){const ano=get(6)+1984,plat=get(3),d=get(9);cenas.push({ano,plat,data:deDoy(ano,d)})}
+  const fim=p,crc=get(10);if(crcBits(b.slice(0,fim))!==crc)throw new Error('código incompleto ou digitado errado');
+  return{car:`${uf}-${ib}-${hx}`,comp,periodo,sensor,cenas};
+}
+async function cenaDoPedido(ped,pt){ // busca a cena exata do pedido quando ela não veio na lista
+  const s2=ped.plat>=5,col=s2?'sentinel-2-l2a':'landsat-c2-l2';
+  const body={collections:[col],limit:10,'filter-lang':'cql2-json',filter:{op:'and',args:[{op:'s_intersects',args:[{property:'geometry'},{type:'Point',coordinates:pt}]},
+    {op:'anyinteracts',args:[{property:'datetime'},{interval:[ped.data+'T00:00:00Z',ped.data+'T23:59:59Z']}]}]},
+    fields:{include:['id','properties.datetime','properties.eo:cloud_cover','properties.platform'],exclude:['assets','links','geometry']}};
+  const r=await fetch(PC+'/stac/v1/search',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const f=((await r.json()).features||[]).find(f=>(f.properties.platform||'').toLowerCase()===PLATS[ped.plat])||null;
+  return f&&{col,id:f.id,data:f.properties.datetime,nuvem:f.properties['eo:cloud_cover'],plat:f.properties.platform||'',s2};
+}
+function cenasMarcadas(){return S.cenas.map((s,i)=>({s,i,o:s.opcoes[s.idx]})).filter(x=>x.o&&$('pk'+x.i)&&$('pk'+x.i).checked)}
+function msgPedido(cod){const l=cenasMarcadas().map(x=>`• ${x.s.ano}: ${fdate(x.o.data)} (${nomeSat(x.o)})`).join('\n');
+  return `Olá! Fiz a consulta no app R.A AgroTec e quero as imagens em GeoTIFF.\nCódigo do pedido: ${cod}\nImóvel: ${$('nome').value||'—'}\nCAR: ${$('car').value||'—'}\nMunicípio: ${$('mun').value||'—'}\nImagens escolhidas:\n${l}`}
+function gerarCodigoPedido(){
+  const sel=cenasMarcadas();if(!sel.length)throw new Error('Marque ao menos uma imagem.');
+  if(sel.length>15)throw new Error('Máximo de 15 imagens por pedido.');
+  return codificarPedido(normCar($('car').value||$('codCar').value),sel.map(x=>({ano:x.s.ano,plat:platCod(x.o),data:x.o.data.slice(0,10)})));
+}
+$('bCodPed').addEventListener('click',()=>{
+  try{const cod=gerarCodigoPedido();S.codPedido=cod;
+    $('pedOut').innerHTML=`<div class="cod" id="codTxt">${cod}</div><div class="btns"><a class="wa" id="waPed" target="_blank" rel="noopener" href="${waLink(msgPedido(cod))}">${WA_SVG} Enviar pedido no WhatsApp</a><button class="sec" id="bCopPed" type="button">Copiar código</button></div><p class="note">Envie este código para a R.A AgroTec: com ele recebemos exatamente as imagens que você escolheu.</p>`;
+    $('bCopPed').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(cod).then(()=>{$('bCopPed').textContent='Copiado ✓'})};
+  }catch(e){$('pedOut').innerHTML=`<div class="status err">${e.message}</div>`}
+});
+$('bPed').addEventListener('click',async()=>{
+  try{const P=decodificarPedido($('codPed').value);P.codigo=$('codPed').value.trim().toUpperCase();
+    status('stPed',`Pedido válido: CAR ${fmtCar(P.car)} · ${P.cenas.length} imagem(ns). Abrindo o imóvel…`);
+    S.pedido=P;$('comp').value=P.comp;$('periodo').value=P.periodo;$('sensor').value=P.sensor;$('alvo').value='imovel';
+    $('codCar').value=fmtCar(P.car);await buscarCar();
+    if(!S.uniao)throw new Error('não consegui abrir o imóvel no SICAR — tente de novo.');
+    $('anos').value=P.cenas.map(c=>c.ano).join(', ');status('stPed','Imóvel aberto. Carregando as imagens do pedido…');
+    await gerar();
+  }catch(e){status('stPed','Erro: '+e.message,true)}
+});
+$('codPed').addEventListener('keydown',e=>{if(e.key==='Enter')$('bPed').click()});
+
+/* ---------- GeoTIFF (EPSG:3857) ---------- */
+async function zlib(u8){if(!window.CompressionStream)return null;const cs=new CompressionStream('deflate');const w=cs.writable.getWriter();w.write(u8);w.close();return new Uint8Array(await new Response(cs.readable).arrayBuffer())}
+async function geotiff(cv,jan){
+  const W=cv.width,H=cv.height,px=cv.getContext('2d').getImageData(0,0,W,H).data,rgb=new Uint8Array(W*H*3);
+  for(let i=0,j=0;i<px.length;i+=4,j+=3){rgb[j]=px[i];rgb[j+1]=px[i+1];rgb[j+2]=px[i+2]}
+  const z=await zlib(rgb),dados=z||rgb,comp=z?8:1;
+  const C=40075016.685578488,r0=C/(256*2**jan.z),res=r0/jan.k,X0=(-jan.ox/jan.k)*r0-C/2,Y0=C/2-(-jan.oy/jan.k)*r0;
+  const geok=[1,1,0,4, 1024,0,1,1, 1025,0,1,1, 3072,0,1,3857, 3076,0,1,9001];
+  const tags=[[256,4,1,W],[257,4,1,H],[258,3,3,'bps'],[259,3,1,comp],[262,3,1,2],[273,4,1,'img'],[277,3,1,3],[278,4,1,H],[279,4,1,dados.length],[284,3,1,1],[33550,12,3,'scale'],[33922,12,6,'tie'],[34735,3,geok.length,'geok']];
+  const ifd=8,ifdLen=2+tags.length*12+4;let off=ifd+ifdLen;
+  const extra={bps:{t:3,v:[8,8,8]},scale:{t:12,v:[res,res,0]},tie:{t:12,v:[0,0,0,X0,Y0,0]},geok:{t:3,v:geok}};
+  for(const k in extra){extra[k].off=off;off+=extra[k].v.length*(extra[k].t===12?8:2);if(off%2)off++}
+  const imgOff=off,buf=new ArrayBuffer(imgOff+dados.length),dv=new DataView(buf);
+  dv.setUint16(0,0x4949);dv.setUint16(2,42,true);dv.setUint32(4,ifd,true);dv.setUint16(ifd,tags.length,true);
+  tags.forEach(([tag,typ,cnt,val],n)=>{const p=ifd+2+n*12;dv.setUint16(p,tag,true);dv.setUint16(p+2,typ,true);dv.setUint32(p+4,cnt,true);
+    if(val==='img')dv.setUint32(p+8,imgOff,true);else if(typeof val==='string')dv.setUint32(p+8,extra[val].off,true);else if(typ===3)dv.setUint16(p+8,val,true);else dv.setUint32(p+8,val,true)});
+  dv.setUint32(ifd+2+tags.length*12,0,true);
+  for(const k in extra){const e=extra[k];e.v.forEach((v,i)=>e.t===12?dv.setFloat64(e.off+i*8,v,true):dv.setUint16(e.off+i*2,v,true))}
+  new Uint8Array(buf,imgOff).set(dados);return new Blob([buf],{type:'image/tiff'});
+}
+$('bTif').addEventListener('click',async()=>{
+  const sel=cenasMarcadas();if(!sel.length){status('stTif','Marque ao menos uma imagem.',true);return}
+  $('bTif').disabled=true;
+  try{const zip=new JSZip(),nome=slug(),{bb}=bboxAlvo(),lat=(bb[1]+bb[3])/2;
+    const wm=(bb[2]-bb[0])*111320*Math.cos(lat*Math.PI/180),ficha=[];
+    for(const [n,x] of sel.entries()){
+      status('stTif',`Gerando GeoTIFF ${n+1}/${sel.length} (${x.s.ano})…`);
+      const W=Math.max(900,Math.min(2600,Math.round(wm/(x.o.s2?4:8))));
+      const base=`${x.s.ano}_${x.o.data.slice(0,10)}_${nomeSat(x.o).replace(/\s/g,'')}`;
+      const cv=document.createElement('canvas');let jan=await renderCena(cv,x.o,W,{limpa:true});
+      zip.file(`imagem_limpa/${base}.tif`,await geotiff(cv,jan));
+      jan=await renderCena(cv,x.o,W,{semRodape:true});
+      zip.file(`com_limite_e_alertas/${base}_limite_alertas.tif`,await geotiff(cv,jan));
+      const C=40075016.685578488,res=C/(256*2**jan.z)/jan.k*Math.cos(lat*Math.PI/180);
+      ficha.push(`${x.s.ano} | ${fdate(x.o.data)} | ${nomeSat(x.o)} | cena ${x.o.id}${x.o.fill&&x.o.fill.length?' | faixas preenchidas com: '+x.o.fill.map(f=>fdate(f.data)).join(', '):''} | pixel ≈ ${fmt(res,1)} m`);
+    }
+    zip.file('LEIA-ME_ficha_tecnica.txt',[`R.A AgroTec · Imagens georreferenciadas`,`Imóvel: ${$('nome').value||'—'}`,`CAR: ${$('car').value||'—'}`,`Município: ${$('mun').value||'—'}`,S.pedido?`Pedido: ${S.pedido.codigo}`:'',
+      `Composição: ${$('comp').value==='fc'?'falsa-cor (SWIR/NIR/R)':'cor natural (R/G/B)'}`,`Sistema de referência: WGS 84 / Pseudo-Mercator (EPSG:3857) — abre direto no QGIS, ArcGIS e Google Earth Pro`,
+      `Fontes: Landsat (USGS/NASA) e Sentinel-2 (Copernicus/ESA) via Microsoft Planetary Computer`,'',`ano | data | satélite | cena | observação | pixel`,...ficha,'',
+      `imagem_limpa: só a imagem de satélite.`,`com_limite_e_alertas: imagem com o limite do CAR (amarelo), alertas (vermelho), embargos (laranja) e áreas protegidas (roxo).`].filter(l=>l!=='').join('\r\n'));
+    const blob=await zip.generateAsync({type:'blob'});baixar(blob,`GeoTIFF_${nome}.zip`);
+    status('stTif',`Pronto: ${sel.length} imagem(ns) em GeoTIFF (limpa e com limite/alertas).`);
+  }catch(e){status('stTif','Erro ao gerar GeoTIFF: '+e.message,true)}
+  $('bTif').disabled=false;
+});
 
 /* ---------- comparador ---------- */
 function montarComparador(){
