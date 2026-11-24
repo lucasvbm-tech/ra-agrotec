@@ -525,14 +525,32 @@ async function qArc(path,bb){
   const u=`${PB}/${path}/query?where=1%3D1&geometry=${bb.join(',')}&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&resultRecordCount=2000&f=geojson`;
   try{const r=await fetch(u+'&_='+Date.now(),{cache:'no-store'});if(!r.ok)return null;const j=await r.json();if(j.error)return null;return j.features||[]}catch(e){return null}
 }
-async function qProdes(layer,bb){
-  const [w,s,e,n]=bb;
+const PRODES_ESPERA=new Map();
+let BIOMAS=null;
+async function biomasDoImovel(){ // códigos IBGE dos biomas a até ~5 km do imóvel (1 Amazônia, 2 Caatinga, 3 Cerrado, 4 M. Atlântica, 5 Pampa, 6 Pantanal)
+  try{if(!BIOMAS){const r=await fetch('biomas.json');BIOMAS=await r.json()}
+    const buf=turf.buffer(S.uniao,5,{units:'kilometers'}),bb=turf.bbox(buf),set=new Set();
+    BIOMAS.features.forEach(f=>{const b=turf.bbox(f);if(b[0]>bb[2]||b[2]<bb[0]||b[1]>bb[3]||b[3]<bb[1])return;try{if(turf.booleanIntersects(buf,f))set.add(f.properties.cd)}catch(e){set.add(f.properties.cd)}});
+    return set.size?set:null}catch(e){return null}
+}
+const BIOMA_CAMADA={'PRODES Caatinga':2,'PRODES Cerrado':3,'PRODES Mata Atlântica':4,'PRODES Pampa':5,'PRODES Pantanal':6};
+const UF_AMZ_LEGAL=['AC','AM','AP','PA','RO','RR','TO','MT','MA'];
+function avisoProdes(){if(!PRODES_ESPERA.size)return;const v=[...PRODES_ESPERA.values()];
+  status('st1',`Aguardando o servidor do INPE (TerraBrasilis): ${v.map(x=>x.nome+(x.t>1?` — tentativa ${x.t}`:'')).join(', ')}…`)}
+async function qProdes(layer,bb,tentativas=2,limite=60000){
+  const [w,s,e,n]=bb,nome=(PRODES.find(x=>x[0]===layer)||[0,'PRODES Amazônia (bioma)'])[1];
   const u=`${TB}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${layer}&outputFormat=application/json&srsName=EPSG:4326&count=5000&bbox=${s},${w},${n},${e},urn:ogc:def:crs:EPSG::4326`;
-  for(let t=0;t<4;t++){
-    try{const r=await fetch(u+'&_='+Date.now(),{cache:'no-store'});if(r.ok){const j=await r.json();if(j&&Array.isArray(j.features))return j.features}}catch(err){}
-    await new Promise(z=>setTimeout(z,1500*(t+1)));
-  }
-  return null;
+  const lento=setTimeout(()=>{if(!PRODES_ESPERA.has(layer))PRODES_ESPERA.set(layer,{nome,t:1});avisoProdes()},8000);
+  try{
+    for(let t=0;t<tentativas;t++){
+      if(t){PRODES_ESPERA.set(layer,{nome,t:t+1});avisoProdes()}
+      const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),limite);
+      try{const r=await fetch(u+'&_='+Date.now(),{cache:'no-store',signal:ac.signal});if(r.ok){const j=await r.json();if(j&&Array.isArray(j.features))return j.features}}catch(err){}
+      finally{clearTimeout(tm)}
+      if(t<tentativas-1)await new Promise(z=>setTimeout(z,2000*(t+1)));
+    }
+    return null;
+  }finally{clearTimeout(lento);PRODES_ESPERA.delete(layer);avisoProdes()}
 }
 const dataDe=v=>{if(v==null||v==='')return'';if(typeof v==='number'){return fdate(v<1e11?v*1000:v)}return fdate(v)};
 function sobrepor(feats,fn){ // devolve itens com geometria da sobreposição
@@ -590,19 +608,28 @@ async function buscar(){
   if(!S.car){const cod=normCar($('car').value||'');if(/^[A-Z]{2}-\d{7}-[0-9A-F]{32}$/.test(cod)){try{const r=await fetch(`${SICAR}?service=WFS&version=2.0.0&request=GetFeature&typeNames=sicar:sicar_imoveis_${cod.slice(0,2).toLowerCase()}&outputFormat=application/json&propertyName=cod_imovel,status_imovel,condicao,uf&cql_filter=${encodeURIComponent(`cod_imovel='${cod}'`)}`);const j=await r.json();if(j.features&&j.features[0])S.car=j.features[0].properties}catch(e){}}}
   const bbC=[bb[0]-.001,bb[1]-.001,bb[2]+.001,bb[3]+.001];
   const codCar=normCar($('car').value||''),carValido=/^[A-Z]{2}-\d{7}-[0-9A-F]{32}$/.test(codCar);
+  const bios=await biomasDoImovel(),ufA=ufImovel();
+  const usa=nome=>{if(!bios)return true;if(nome==='PRODES Amazônia Legal')return !ufA||UF_AMZ_LEGAL.includes(ufA)||bios.has(1);return bios.has(BIOMA_CAMADA[nome])};
+  const FORA='fora';
   const [prodes,amzBioma,mbAlertas,arc]=await Promise.all([
-    Promise.all(PRODES.map(([l])=>qProdes(l,bb))),
-    qProdes('prodes-amazon-nb:yearly_deforestation_biome',bbC),
+    Promise.all(PRODES.map(([l,nome])=>usa(nome)?qProdes(l,bb):Promise.resolve(FORA))),
+    (!bios||bios.has(1))?qProdes('prodes-amazon-nb:yearly_deforestation_biome',bbC):Promise.resolve(FORA),
     carValido?qMapBiomas(codCar):Promise.resolve(undefined),
     (async()=>{const o={};for(const [k,pth] of Object.entries(ARC)){let r=null;for(let t=0;t<5&&r===null;t++){if(t){status('st1',`Servidor do IBAMA instável — nova tentativa (${t+1}/5)…`);await new Promise(z=>setTimeout(z,Math.min(2000*t,5000)))}r=await qArc(pth,bb)}o[k]=r}return o})()
   ]);
+  const foraBioma=new Set(PRODES.filter((x,i)=>prodes[i]===FORA).map(x=>x[1]));PRODES.forEach((x,i)=>{if(prodes[i]===FORA)prodes[i]=[]});
+  const amzFora=amzBioma===FORA;
+  const falhas=PRODES.map(([l],i)=>prodes[i]===null?i:-1).filter(i=>i>=0);
+  if(falhas.length){status('st1',`Servidor do INPE lento — consultando de novo: ${falhas.map(i=>PRODES[i][1]).join(', ')}…`);
+    await new Promise(z=>setTimeout(z,3000));
+    const rep2=await Promise.all(falhas.map(i=>qProdes(PRODES[i][0],bb,1,70000)));falhas.forEach((i,k)=>{prodes[i]=rep2[k]})}
   const C=[],add=(nome,res,itens,nota)=>C.push({nome,res,itens:itens||[],nota:nota||''});
   const prodesItens=(feats,bioma)=>sobrepor((feats||[]).filter(f=>{const a=anoDe(f.properties||{});return !a||a>=anoMin}),p=>{const a=anoDe(p);return{titulo:`Desmatamento - PRODES ${bioma.toUpperCase()} ${a||''}`,id:attr(p,['fid','uid','gid','id'])||'',data:dataDe(attr(p,['image_date','date','view_date'])),ano:a}}).filter(i=>i.ha>min);
   const PB2={'PRODES Pantanal':1,'PRODES Caatinga':1,'PRODES Cerrado':1,'PRODES Amazônia Legal':1,'PRODES Pampa':1,'PRODES Mata Atlântica':1};
   const nomesBioma={'PRODES Cerrado':'Cerrado','PRODES Amazônia Legal':'Amazônia Legal','PRODES Mata Atlântica':'Mata Atlântica','PRODES Caatinga':'Caatinga','PRODES Pantanal':'Pantanal','PRODES Pampa':'Pampa'};
   const prodesRaw=[];
   const resP={};PRODES.forEach(([l,nome],i)=>{const f=prodes[i];if(f)f.forEach(x=>{x.properties._fonte=nome;prodesRaw.push(x)});resP[nome]=f===null?null:prodesItens(f,nomesBioma[nome])});
-  const resProd=nome=>{const it=resP[nome];if(it===null)add('Desmatamento '+nome,'V',[],'Fonte indisponível no momento da consulta.');else add('Desmatamento '+nome,it.length?'NC':'C',it,`Polígonos a partir de ${anoMin}, sobreposição > ${fmt(min)} ha.`)};
+  const resProd=nome=>{const it=resP[nome];if(foraBioma.has(nome)){add('Desmatamento '+nome,'C',[],nome==='PRODES Amazônia Legal'?'Imóvel fora da Amazônia Legal.':`Imóvel fora do bioma ${nomesBioma[nome]} (limite oficial do IBGE, 1:250.000).`);return}if(it===null)add('Desmatamento '+nome,'V',[],'O servidor do INPE (TerraBrasilis) não respondeu nesta consulta. Use "Refazer análise" em alguns minutos.');else add('Desmatamento '+nome,it.length?'NC':'C',it,`Polígonos a partir de ${anoMin}, sobreposição > ${fmt(min)} ha.`)};
   // territórios
   const crit=(nome,feats,fn,filtro)=>{if(feats===null){add(nome,'V',[],'Servidor da fonte indisponível no momento. Use "Refazer análise" para consultar de novo.');return[]}const it=sobrepor(feats,fn).filter(filtro||(()=>true));add(nome,it.length?'NC':'C',it);return it};
   const quil=crit('Território Quilombola (INCRA)',arc.quil,p=>({titulo:`Território Quilombola - ${p.nm_comunid||''}`,id:p.cd_quilomb||p.objectid||'',data:'',extra:[p.fase,p.nm_municip&&(p.nm_municip+'/'+(p.cd_uf||''))].filter(Boolean).join(' · ')}));
@@ -642,7 +669,8 @@ async function buscar(){
   estadual('Embargo SEDAM RO','RO','sedam.ro.gov.br');
   const ti=crit('Terra Indígena (FUNAI)',arc.ti,p=>({titulo:`Terra Indígena - ${p.terrai_nom||''}`,id:p.terrai_cod||'',extra:[p.etnia_nome,p.fase_ti].filter(Boolean).join(' · ')}));
   // PRODES contíguo Amazônia bioma 2008+ (polígonos dentro do imóvel ou encostados até 50 m)
-  if(amzBioma===null)add('PRODES Contíguo Amazônia Bioma (2008-atual)','V',[],'Fonte indisponível no momento da consulta.');
+  if(amzFora)add('PRODES Contíguo Amazônia Bioma (2008-atual)','C',[],'Imóvel fora do bioma Amazônia (limite oficial do IBGE, 1:250.000).');
+  else if(amzBioma===null)add('PRODES Contíguo Amazônia Bioma (2008-atual)','V',[],'O servidor do INPE (TerraBrasilis) não respondeu nesta consulta. Use "Refazer análise" em alguns minutos.');
   else{
     let buf=S.uniao;try{buf=turf.buffer(S.uniao,0.05,{units:'kilometers'})}catch(e){}
     const aImovel=haDe(S.uniao),it=[];
