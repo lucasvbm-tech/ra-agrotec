@@ -308,6 +308,15 @@ footer p{margin:6px 0 0;font-size:13px;line-height:1.6;max-width:860px}
   <div class="prog"><div id="pgI"></div></div>
   <div class="status" id="st4"></div>
   <div id="inpeRes"></div>
+  <div class="abrirPed soTec" id="fusBox">
+    <b>Imagens INPE fusionadas · prontas para entregar</b>
+    <p class="note" style="margin:4px 0 8px">O robô do GitHub busca as cenas do INPE, corrige o georreferenciamento e faz a fusão (pancromática + multiespectral). Entrega um .zip com: GeoTIFF fusionado R3G4B2, bandas originais e pancromática, mapa da fazenda, pranchas de zoom por alerta e ficha técnica. Leva de 5 a 15 minutos.</p>
+    <div class="row" style="grid-template-columns:1fr auto;align-items:end"><div><label for="fAnos">Anos (2008 = mais perto de 22/07/2008; "atual" = cena mais recente)</label><input type="text" id="fAnos" value="2008, atual"></div><button id="bFus" type="button">Gerar imagens INPE</button></div>
+    <details style="margin-top:8px"><summary class="note" style="cursor:pointer">Chave de acesso do GitHub <span id="tokOk"></span></summary>
+      <div class="row" style="grid-template-columns:1fr auto;align-items:end;margin-top:6px"><input type="password" id="ghTok" placeholder="github_pat_…" autocomplete="off"><button class="sec" id="bTok" type="button">Salvar chave</button></div>
+      <p class="note">A chave fica guardada só neste aparelho. Ela permite ao app acionar o robô do seu repositório.</p></details>
+    <div class="status" id="stFus"></div><div id="fusOut"></div>
+  </div>
 </section>
 
 <section class="card" id="exportar">
@@ -1203,6 +1212,54 @@ $('bCarta').addEventListener('click',async()=>{
   $('bCarta').disabled=false;
 });
 const quadroLoc=[];const bbaPoly=b=>turf.bboxPolygon(b);
+
+/* ---------- imagens INPE fusionadas (robô do GitHub) ---------- */
+const GH_REPO='raagrotec/ra-agrotec',GH_API='https://api.github.com/repos/'+GH_REPO;
+const ghTok=()=>{try{return localStorage.getItem('ra_gh_tok')||''}catch(e){return''}};
+function marcaTok(){$('tokOk').textContent=ghTok()?'✓ salva':'— não configurada'}
+$('bTok').addEventListener('click',()=>{const v=$('ghTok').value.trim();try{v?localStorage.setItem('ra_gh_tok',v):localStorage.removeItem('ra_gh_tok')}catch(e){}$('ghTok').value='';marcaTok();status('stFus',v?'Chave salva neste aparelho.':'Chave removida.')});
+marcaTok();
+function geoCompacta(g,tol){const s=turf.simplify(g,{tolerance:tol,highQuality:true});const r=c=>typeof c[0]==='number'?[+c[0].toFixed(6),+c[1].toFixed(6)]:c.map(r);
+  const geo=s.type==='Feature'?s.geometry:s;return{type:geo.type,coordinates:r(geo.coordinates)}}
+function dadosFusao(){
+  for(let tol=0.00002;tol<0.01;tol*=2){
+    const d={car:normCar($('car').value||$('codCar').value)||$('car').value,nome:$('nome').value,mun:$('mun').value,imovel:geoCompacta(S.uniao,tol),
+      alertas:S.alertas.slice(0,30).map(a=>({id:a.id,fonte:a.fonte||'',ano:a.ano||null,ha:+(+a.ha).toFixed(2),geom:geoCompacta(a.geom,tol/2)}))};
+    const j=JSON.stringify(d);if(j.length<60000)return j}
+  throw new Error('o limite do imóvel é complexo demais para enviar');
+}
+async function gh(caminho,op){const r=await fetch(GH_API+caminho,Object.assign({headers:{Authorization:'Bearer '+ghTok(),Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}},op||{}));
+  if(r.status===401||r.status===403)throw new Error('a chave do GitHub foi recusada — confira se ela tem permissão "Actions: leitura e escrita" no repositório ra-agrotec');
+  if(!r.ok&&r.status!==204)throw new Error('GitHub respondeu '+r.status);return r.status===204?null:r.json()}
+let fusTimer=null;
+async function acompanhar(id,t0){
+  clearTimeout(fusTimer);
+  try{
+    const j=await gh('/actions/workflows/inpe.yml/runs?event=workflow_dispatch&per_page=20');
+    const run=(j.workflow_runs||[]).find(r=>r.display_title==='INPE '+id);
+    const min=Math.round((Date.now()-t0)/60000);
+    if(!run){status('stFus',`Pedido enviado ao robô (${id}). Aguardando ele começar…`);fusTimer=setTimeout(()=>acompanhar(id,t0),10000);return}
+    if(run.status!=='completed'){status('stFus',`Processando as imagens do INPE… ${min} min (costuma levar de 5 a 15). Pode deixar esta tela aberta.`);fusTimer=setTimeout(()=>acompanhar(id,t0),15000);return}
+    if(run.conclusion==='success'){const u=`https://github.com/${GH_REPO}/releases/download/inpe-resultados/${id}.zip`;
+      status('stFus',`Imagens prontas (${min} min).`);$('fusOut').innerHTML=`<div class="btns"><a class="wa" style="background:#b7854f" href="${u}" download>⬇ Baixar imagens INPE (.zip)</a></div><p class="note">O arquivo fica disponível por 30 dias.</p>`;
+      try{localStorage.removeItem('ra_fus_ult')}catch(e){}}
+    else{status('stFus','O robô não conseguiu terminar (o servidor do INPE pode estar fora do ar). Tente de novo em alguns minutos.',true);
+      $('fusOut').innerHTML=`<p class="note"><a href="${run.html_url}" target="_blank" rel="noopener">Ver detalhes no GitHub</a></p>`;try{localStorage.removeItem('ra_fus_ult')}catch(e){}}
+  }catch(e){status('stFus','Erro: '+e.message,true)}
+}
+$('bFus').addEventListener('click',async()=>{
+  if(!S.uniao){status('stFus','Abra um imóvel primeiro.',true);return}
+  if(!ghTok()){status('stFus','Configure a chave de acesso do GitHub (logo abaixo) antes de gerar.',true);$('fusBox').querySelector('details').open=true;return}
+  $('bFus').disabled=true;$('fusOut').innerHTML='';
+  try{
+    const id='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),t0=Date.now();
+    await gh('/actions/workflows/inpe.yml/dispatches',{method:'POST',body:JSON.stringify({ref:'main',inputs:{pedido:id,anos:$('fAnos').value||'2008, atual',dados:dadosFusao()}})});
+    try{localStorage.setItem('ra_fus_ult',JSON.stringify({id,t0}))}catch(e){}
+    acompanhar(id,t0);
+  }catch(e){status('stFus','Erro: '+e.message,true)}
+  $('bFus').disabled=false;
+});
+try{const u=JSON.parse(localStorage.getItem('ra_fus_ult')||'null');if(u&&Date.now()-u.t0<3*3600e3&&document.body.classList.contains('tec'))acompanhar(u.id,u.t0)}catch(e){}
 
 /* ---------- comparador ---------- */
 function montarComparador(){

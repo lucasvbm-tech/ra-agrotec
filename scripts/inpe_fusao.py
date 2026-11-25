@@ -279,15 +279,20 @@ def para_px(geom_utm, tr):
 
 
 def tracejado(d, pts, cor, larg, traco=9, vazio=6):
+    """Linha tracejada contínua ao longo do contorno (o padrão não reinicia a cada vértice)."""
+    ciclo, fase = traco + vazio, 0.0
     for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
         L = math.hypot(x1 - x0, y1 - y0)
-        if L == 0:
-            continue
-        p = 0
+        p = 0.0
         while p < L:
-            q = min(p + traco, L)
-            d.line([(x0 + (x1 - x0) * p / L, y0 + (y1 - y0) * p / L), (x0 + (x1 - x0) * q / L, y0 + (y1 - y0) * q / L)], fill=cor, width=larg)
-            p += traco + vazio
+            pos = (fase + p) % ciclo
+            if pos < traco:
+                q = min(L, p + traco - pos)
+                d.line([(x0 + (x1 - x0) * p / L, y0 + (y1 - y0) * p / L), (x0 + (x1 - x0) * q / L, y0 + (y1 - y0) * q / L)], fill=cor, width=larg)
+            else:
+                q = min(L, p + ciclo - pos)
+            p = q if q > p else p + 0.5
+        fase = (fase + L) % ciclo
 
 
 def escala(d, x, y, mpp, alvo_px, cor=(255, 255, 255)):
@@ -447,8 +452,8 @@ def main():
             for pts in para_px(a["u"], tr):
                 d.line(pts, fill=(255, 40, 40), width=3)
         for pts in para_px(im_utm, tr):
-            d.line(pts, fill=(0, 0, 0), width=7)
-            d.line(pts, fill=(255, 220, 0), width=4)
+            d.line(pts, fill=(0, 0, 0), width=8)
+            d.line(pts, fill=(255, 220, 0), width=5)
         for a in alertas:
             p = a["u"].representative_point()
             x, y = ~tr * (p.x, p.y)
@@ -469,7 +474,7 @@ def main():
         z.writestr(f"3_mapa_da_fazenda_{c['data']}.png", b.getvalue())
 
     # ---------------- pranchas de zoom por alerta (padrão R.A AgroTec)
-    P, cols, gap, cab = 300, 4, 9, 64
+    P, cols, gap, cab = 300, 4, 9, 84
     for a in alertas:
         ax0, ay0, ax1, ay1 = a["u"].bounds
         lado = max(ax1 - ax0, ay1 - ay0) * 1.7 + 200
@@ -480,8 +485,9 @@ def main():
         Hp = cab + rows * (P + 34) + 40
         folha = Image.new("RGB", (Wp, Hp), "white")
         d = ImageDraw.Draw(folha)
-        d.text((7, 14), f"{titulo_car}  |  Alerta A{a['id']} – {a.get('fonte') or 'PRODES'}{(' d' + str(a['ano'])) if a.get('ano') else ''} – {str(round(a.get('ha') or 0, 1)).replace('.', ',')} ha",
-               fill=(20, 20, 20), font=fonte(19, True))
+        d.text((7, 10), f"Alerta A{a['id']} – {a.get('fonte') or 'PRODES'}{(' d' + str(a['ano'])) if a.get('ano') else ''} – {str(round(a.get('ha') or 0, 1)).replace('.', ',')} ha",
+               fill=(20, 20, 20), font=fonte(20, True))
+        d.text((7, 38), titulo_car, fill=(70, 70, 70), font=fonte(15))
         for i, c in enumerate(cenas):
             col, row = i % cols, i // cols
             X, Y = 7 + col * (P + gap), cab + row * (P + 34)
