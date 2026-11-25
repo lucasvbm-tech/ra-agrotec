@@ -1,0 +1,38 @@
+name: Imagens INPE (fusão)
+run-name: INPE ${{ inputs.pedido }}
+on:
+  workflow_dispatch:
+    inputs:
+      pedido: {description: 'Identificador do pedido', required: true, type: string}
+      anos: {description: 'Anos (ex.: 2008, atual)', required: true, type: string, default: '2008, atual'}
+      dados: {description: 'Imóvel e alertas (JSON enviado pelo app)', required: true, type: string}
+permissions:
+  contents: write
+jobs:
+  processar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: {sparse-checkout: scripts}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -q rasterio numpy opencv-python-headless pillow shapely pyproj
+      - name: Processar imagens do INPE
+        env:
+          PEDIDO: ${{ inputs.pedido }}
+          ANOS: ${{ inputs.anos }}
+          DADOS: ${{ inputs.dados }}
+        run: python scripts/inpe_fusao.py
+      - name: Publicar o .zip para download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PEDIDO: ${{ inputs.pedido }}
+        run: |
+          gh release view inpe-resultados >/dev/null 2>&1 || gh release create inpe-resultados --title "Imagens INPE (resultados)" --notes "Arquivos gerados pelo modo técnico. Apagados após 30 dias." --latest=false
+          gh release upload inpe-resultados "saida/${PEDIDO//[^A-Za-z0-9_-]/}.zip" --clobber
+          # limpa resultados com mais de 30 dias
+          limite=$(date -u -d '30 days ago' +%s)
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/inpe-resultados" --jq '.assets[] | [.id, .created_at] | @tsv' | while IFS=$'\t' read -r id quando; do
+            [ "$(date -u -d "$quando" +%s)" -lt "$limite" ] && gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/$id" || true
+          done

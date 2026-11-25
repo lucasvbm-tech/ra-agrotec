@@ -1,0 +1,26 @@
+name: Teste imagens INPE
+on:
+  push:
+    paths: ['scripts/teste_inpe.json']
+permissions:
+  contents: write
+jobs:
+  teste:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: {sparse-checkout: scripts}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -q rasterio numpy opencv-python-headless pillow shapely pyproj
+      - name: Processar
+        run: |
+          export PEDIDO=$(jq -r .pedido scripts/teste_inpe.json) ANOS=$(jq -r .anos scripts/teste_inpe.json) DADOS=$(jq -r .dados scripts/teste_inpe.json)
+          mkdir -p saida
+          ( time python scripts/inpe_fusao.py ) 2>&1 | tee "saida/${PEDIDO}.log.txt" || true
+      - name: Publicar
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          gh release view inpe-resultados >/dev/null 2>&1 || gh release create inpe-resultados --title "Imagens INPE (resultados)" --notes "Arquivos gerados pelo modo técnico. Apagados após 30 dias." --latest=false
+          gh release upload inpe-resultados saida/* --clobber
