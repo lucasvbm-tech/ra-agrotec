@@ -537,7 +537,26 @@ const BIOMA_CAMADA={'PRODES Caatinga':2,'PRODES Cerrado':3,'PRODES Mata Atlânti
 const UF_AMZ_LEGAL=['AC','AM','AP','PA','RO','RR','TO','MT','MA'];
 function avisoProdes(){if(!PRODES_ESPERA.size)return;const v=[...PRODES_ESPERA.values()];
   status('st1',`Aguardando o servidor do INPE (TerraBrasilis): ${v.map(x=>x.nome+(x.t>1?` — tentativa ${x.t}`:'')).join(', ')}…`)}
+// base do PRODES guardada no site (2008+), atualizada pelo robô do GitHub; o INPE ao vivo fica de reserva
+const PRODES_LOCAL={'prodes-cerrado-nb:yearly_deforestation':'cerrado','prodes-legal-amz:yearly_deforestation':'legal_amz','prodes-amazon-nb:yearly_deforestation_biome':'amazonia_bioma',
+  'prodes-mata-atlantica-nb:yearly_deforestation':'mata_atlantica','prodes-caatinga-nb:yearly_deforestation':'caatinga','prodes-pantanal-nb:yearly_deforestation':'pantanal','prodes-pampa-nb:yearly_deforestation':'pampa'};
+let PRODES_IDX;const PRODES_VERSAO={};
+async function prodesLocal(layer,bb){
+  const nome=PRODES_LOCAL[layer];if(!nome)return null;
+  if(PRODES_IDX===undefined){try{const r=await fetch('prodes/index.json',{cache:'no-cache'});PRODES_IDX=r.ok?await r.json():null}catch(e){PRODES_IDX=null}}
+  const info=PRODES_IDX&&PRODES_IDX[nome];if(!info)return null;
+  const P=info.passo||0.25,tem=new Set(info.blocos),ks=[];
+  for(let tx=Math.floor(bb[0]/P);tx<=Math.floor(bb[2]/P);tx++)for(let ty=Math.floor(bb[1]/P);ty<=Math.floor(bb[3]/P);ty++)if(tem.has(`${tx}_${ty}`))ks.push(`${tx}_${ty}`);
+  try{
+    const vistos=new Set(),out=[];
+    for(const fc of await Promise.all(ks.map(k=>fetch(`prodes/${nome}/${k}.json`).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}))))
+      for(const f of fc.features){const id=f.properties._id;if(vistos.has(id))continue;vistos.add(id);
+        const b=turf.bbox(f);if(b[0]>bb[2]||b[2]<bb[0]||b[1]>bb[3]||b[3]<bb[1])continue;out.push(f)}
+    PRODES_VERSAO[layer]=info.versao;return out;
+  }catch(e){return null}
+}
 async function qProdes(layer,bb,tentativas=2,limite=60000){
+  const loc=await prodesLocal(layer,bb);if(loc)return loc;
   const [w,s,e,n]=bb,nome=(PRODES.find(x=>x[0]===layer)||[0,'PRODES Amazônia (bioma)'])[1];
   const u=`${TB}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${layer}&outputFormat=application/json&srsName=EPSG:4326&count=5000&bbox=${s},${w},${n},${e},urn:ogc:def:crs:EPSG::4326`;
   const lento=setTimeout(()=>{if(!PRODES_ESPERA.has(layer))PRODES_ESPERA.set(layer,{nome,t:1});avisoProdes()},8000);
@@ -629,7 +648,7 @@ async function buscar(){
   const nomesBioma={'PRODES Cerrado':'Cerrado','PRODES Amazônia Legal':'Amazônia Legal','PRODES Mata Atlântica':'Mata Atlântica','PRODES Caatinga':'Caatinga','PRODES Pantanal':'Pantanal','PRODES Pampa':'Pampa'};
   const prodesRaw=[];
   const resP={};PRODES.forEach(([l,nome],i)=>{const f=prodes[i];if(f)f.forEach(x=>{x.properties._fonte=nome;prodesRaw.push(x)});resP[nome]=f===null?null:prodesItens(f,nomesBioma[nome])});
-  const resProd=nome=>{const it=resP[nome];if(foraBioma.has(nome)){add('Desmatamento '+nome,'C',[],nome==='PRODES Amazônia Legal'?'Imóvel fora da Amazônia Legal.':`Imóvel fora do bioma ${nomesBioma[nome]} (limite oficial do IBGE, 1:250.000).`);return}if(it===null)add('Desmatamento '+nome,'V',[],'O servidor do INPE (TerraBrasilis) não respondeu nesta consulta. Use "Refazer análise" em alguns minutos.');else add('Desmatamento '+nome,it.length?'NC':'C',it,`Polígonos a partir de ${anoMin}, sobreposição > ${fmt(min)} ha.`)};
+  const resProd=nome=>{const it=resP[nome];if(foraBioma.has(nome)){add('Desmatamento '+nome,'C',[],nome==='PRODES Amazônia Legal'?'Imóvel fora da Amazônia Legal.':`Imóvel fora do bioma ${nomesBioma[nome]} (limite oficial do IBGE, 1:250.000).`);return}if(it===null)add('Desmatamento '+nome,'V',[],'O servidor do INPE (TerraBrasilis) não respondeu nesta consulta. Use "Refazer análise" em alguns minutos.');else{const lay=(PRODES.find(x=>x[1]===nome)||[])[0],v=PRODES_VERSAO[lay];add('Desmatamento '+nome,it.length?'NC':'C',it,`Polígonos a partir de ${anoMin}, sobreposição > ${fmt(min)} ha.${v?` Base PRODES (INPE) de ${fdate(v)}.`:''}`)}};
   // territórios
   const crit=(nome,feats,fn,filtro)=>{if(feats===null){add(nome,'V',[],'Servidor da fonte indisponível no momento. Use "Refazer análise" para consultar de novo.');return[]}const it=sobrepor(feats,fn).filter(filtro||(()=>true));add(nome,it.length?'NC':'C',it);return it};
   const quil=crit('Território Quilombola (INCRA)',arc.quil,p=>({titulo:`Território Quilombola - ${p.nm_comunid||''}`,id:p.cd_quilomb||p.objectid||'',data:'',extra:[p.fase,p.nm_municip&&(p.nm_municip+'/'+(p.cd_uf||''))].filter(Boolean).join(' · ')}));

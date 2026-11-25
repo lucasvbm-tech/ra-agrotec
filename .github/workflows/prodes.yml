@@ -1,0 +1,35 @@
+name: Atualizar base do PRODES (INPE)
+on:
+  schedule:
+    - cron: '41 6 * * *'   # todo dia, 03:41 (Brasília); só baixa tudo se faltar camada ou a base tiver mais de 25 dias
+  workflow_dispatch:
+    inputs:
+      forcar:
+        description: 'Baixar tudo de novo mesmo que a base seja recente'
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency: {group: prodes, cancel-in-progress: false}
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Baixar PRODES do INPE
+        env:
+          FORCAR: ${{ inputs.forcar && '1' || '' }}
+        run: python scripts/atualizar_prodes.py || echo "INPE fora do ar — tenta de novo amanhã"
+      - name: Publicar se mudou
+        run: |
+          git config user.name "R.A AgroTec"
+          git config user.email "raagrotec@users.noreply.github.com"
+          git add prodes
+          if git diff --cached --quiet; then echo "sem mudanças"; exit 0; fi
+          git commit -m "Atualiza base do PRODES (INPE/TerraBrasilis)"
+          git pull --rebase origin main || true
+          git push origin HEAD:main
+          git push -f origin HEAD:gh-pages
