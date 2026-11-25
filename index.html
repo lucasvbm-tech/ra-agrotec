@@ -283,7 +283,7 @@ footer p{margin:6px 0 0;font-size:13px;line-height:1.6;max-width:860px}
   <div class="pedido" id="pedBox" hidden>
     <h3>Pedido das imagens em GeoTIFF</h3>
     <p class="note" style="margin:0">Marque em cada ano as imagens que quer receber (troque a data no seletor, se preferir outra) e gere o código do pedido.</p>
-    <div class="btns"><button id="bCodPed" type="button">Gerar código do pedido</button><button class="sec soTec" id="bTif" type="button">Exportar GeoTIFF (.zip)</button></div>
+    <div class="btns"><button id="bCodPed" type="button">Gerar código do pedido</button><button class="sec soTec" id="bTif" type="button">Exportar GeoTIFF (.zip)</button><button class="sec soTec" id="bCarta" type="button">Carta-mapa (PDF A3)</button></div>
     <div id="pedOut"></div><div class="status" id="stTif"></div>
   </div>
   <h3>Comparar duas datas</h3>
@@ -832,9 +832,9 @@ function bboxAlvo(){
   return{bb:[bb[0]-dx,bb[1]-dy,bb[2]+dx,bb[3]+dy],alvo:v==='imovel'?null:+v};
 }
 async function renderCena(cv,c,W,op){
-  op=op||{};const H=W;cv.width=W;cv.height=H;
+  op=op||{};const H=op.H||W;cv.width=W;cv.height=H;
   const ctx=cv.getContext('2d');ctx.fillStyle='#d9d5c8';ctx.fillRect(0,0,W,H);
-  const {bb,alvo}=bboxAlvo();const jan=janela(bb,W,H,c&&c.s2?16:15);
+  const {bb,alvo}=op.bb?{bb:op.bb,alvo:op.alvo??null}:bboxAlvo();const jan=janela(bb,W,H,c&&c.s2?16:15);
   const fill=(c&&c.fill)||[];
   if(c&&fill.length){ // preenche as faixas do Landsat 7 pixel a pixel, pulando nuvem das outras datas
     const camada=async o=>{const k=document.createElement('canvas');k.width=W;k.height=H;await desenharBase(k.getContext('2d'),W,H,jan,(z,x,y)=>tileUrl(o,z,x,y));return k.getContext('2d').getImageData(0,0,W,H).data};
@@ -1076,6 +1076,114 @@ $('bTif').addEventListener('click',async()=>{
   }catch(e){status('stTif','Erro ao gerar GeoTIFF: '+e.message,true)}
   $('bTif').disabled=false;
 });
+
+/* ---------- carta-mapa A3 ---------- */
+function pxLonLat(jan,X,Y){const n=256*2**jan.z,wx=(X-jan.ox)/jan.k,wy=(Y-jan.oy)/jan.k;
+  return[wx/n*360-180,Math.atan(Math.sinh(Math.PI-2*Math.PI*wy/n))*180/Math.PI]}
+function dms(v,eixo){const h=eixo==='lat'?(v<0?'S':'N'):(v<0?'W':'E');v=Math.abs(v);let g=Math.floor(v),m=Math.floor((v-g)*60),sg=Math.round(((v-g)*60-m)*60);
+  if(sg===60){sg=0;m++}if(m===60){m=0;g++}return`${g}°${String(m).padStart(2,'0')}'${String(sg).padStart(2,'0')}"${h}`}
+function bbExpand(g,f,min){const b=turf.bbox(g),dx=(b[2]-b[0])*f+min,dy=(b[3]-b[1])*f+min;return[b[0]-dx,b[1]-dy,b[2]+dx,b[3]+dy]}
+function bbAspecto(bb,asp){ // ajusta bbox à proporção (largura/altura) do quadro, em metros
+  const cy=(bb[1]+bb[3])/2,k=Math.cos(cy*Math.PI/180),cx=(bb[0]+bb[2])/2;let w=(bb[2]-bb[0])*k,h=bb[3]-bb[1];
+  if(w/h<asp)w=h*asp;else h=w/asp;return[cx-w/2/k,cy-h/2,cx+w/2/k,cy+h/2]}
+$('bCarta').addEventListener('click',async()=>{
+  const sel=cenasMarcadas();if(!sel.length){status('stTif','Marque ao menos uma imagem.',true);return}
+  $('bCarta').disabled=true;
+  try{
+    const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a3'});
+    const PW=420,PH=297,M=10,SX=PW-M-108,MW=SX-M-4,MH=PH-2*M; // área do mapa e selo
+    const atual=sel[sel.length-1].o,haImovel=haDe(S.uniao),hoje=new Date().toLocaleDateString('pt-BR');
+    const alertas=S.alertas.slice(0,24);let pag=0;
+    const total=1+Math.max(1,alertas.length);
+    // ---------- selo (coluna da direita) ----------
+    const selo=(titulo,sub,extra)=>{
+      doc.setDrawColor(40);doc.setLineWidth(0.5);doc.rect(M,M,PW-2*M,PH-2*M);doc.rect(SX,M,PW-M-SX,PH-2*M);
+      let y=M+4;doc.addImage(LOGO,'PNG',SX+4,y,22,21.5);
+      doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(23,35,29);doc.text('R.A AgroTec',SX+29,y+9);
+      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(140,100,55);doc.text('Soluções Rurais',SX+29,y+14.5);
+      y+=26;doc.setFillColor(183,133,79);doc.rect(SX,y,PW-M-SX,1,'F');y+=8;
+      doc.setTextColor(23,35,29);doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text(titulo,SX+4,y);
+      doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(70);doc.text(doc.splitTextToSize(sub,100),SX+4,y+6);y+=17;
+      const lin=(r,v)=>{doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(70);doc.text(r,SX+4,y);doc.setFont('helvetica','normal');doc.setTextColor(23,35,29);
+        const t=doc.splitTextToSize(String(v||'—'),72);doc.text(t,SX+32,y);y+=4.6*t.length};
+      lin('Imóvel',$('nome').value);lin('CAR',$('car').value);lin('Município',$('mun').value);lin('Área (CAR)',fmt(haImovel)+' ha');
+      y+=2;doc.setDrawColor(200);doc.line(SX+4,y,PW-M-4,y);y+=6;
+      doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(23,35,29);doc.text('Legenda',SX+4,y);y+=6;
+      const leg=(cor,txt,tipo)=>{doc.setDrawColor(...cor);doc.setLineWidth(tipo==='grossa'?1.2:0.9);if(tipo==='trac')doc.setLineDashPattern([1.6,1],0);
+        doc.rect(SX+5,y-3,9,4.5);doc.setLineDashPattern([],0);doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(40);doc.text(txt,SX+17,y);y+=6.2};
+      leg([255,212,0],'Limite do imóvel (CAR/SICAR)','grossa');leg([255,59,48],'Alerta de desmatamento (A1, A2…)');
+      if(S.embargos.length)leg([255,157,46],'Área embargada','trac');if(S.protegidas.length)leg([195,155,255],'Área protegida / território');
+      y+=1;doc.setDrawColor(200);doc.setLineWidth(0.3);doc.line(SX+4,y,PW-M-4,y);y+=6;
+      if(extra)y=extra(y);
+      // rodapé do selo
+      let yb=PH-M-40;doc.setDrawColor(200);doc.line(SX+4,yb,PW-M-4,yb);yb+=5;doc.setFontSize(7.6);doc.setTextColor(70);doc.setFont('helvetica','normal');
+      doc.text(doc.splitTextToSize('Sistema de coordenadas: geográficas, datum WGS 84 (compatível com SIRGAS 2000). Imagens: Landsat (USGS/NASA) e Sentinel-2 (Copernicus/ESA) via Microsoft Planetary Computer. Alertas: PRODES (INPE/TerraBrasilis) e MapBiomas Alerta. Limite: SICAR.',100),SX+4,yb);
+      yb+=19;doc.setFont('helvetica','bold');doc.setTextColor(23,35,29);doc.text(`Elaboração: R.A AgroTec · (62) 99415-5001`,SX+4,yb);
+      doc.setFont('helvetica','normal');doc.text(`Emitido em ${hoje}${S.pedido?' · Pedido '+S.pedido.codigo.slice(0,14)+'…':''}`,SX+4,yb+4.5);doc.text(`Folha ${pag}/${total}`,PW-M-4,yb+4.5,{align:'right'});
+    };
+    // ---------- desenha um quadro de imagem com grade de coordenadas ----------
+    const quadro=async(c,bb,x,y,w,h,pxmm,op)=>{
+      const W=Math.round(w*pxmm),H=Math.round(h*pxmm),cv=document.createElement('canvas');
+      const jan=await renderCena(cv,c,W,Object.assign({H,bb:bbAspecto(bb,w/h),semRodape:true},op||{}));
+      doc.addImage(cv.toDataURL('image/jpeg',0.9),'JPEG',x,y,w,h);doc.setDrawColor(30);doc.setLineWidth(0.35);doc.rect(x,y,w,h);
+      return{jan,W,H};
+    };
+    const grade=(r,x,y,w,h,fs)=>{ // grade de coordenadas + escala + norte
+      const {jan,W,H}=r,[lon0,lat1]=pxLonLat(jan,0,0),[lon1,lat0]=pxLonLat(jan,W,H);
+      const passo=[1/3600*15,1/3600*30,1/60,2/60,5/60,10/60,0.5,1].find(p=>(lon1-lon0)/p<=5)||1;
+      doc.setFontSize(fs);doc.setTextColor(30);doc.setLineWidth(0.15);
+      doc.saveGraphicsState&&doc.saveGraphicsState();
+      for(let v=Math.ceil(lon0/passo)*passo;v<lon1;v+=passo){const X=x+(v-lon0)/(lon1-lon0)*w;doc.setDrawColor(255);doc.setLineDashPattern([0.8,1.6],0);doc.line(X,y,X,y+h);doc.setLineDashPattern([],0);
+        doc.setDrawColor(30);doc.line(X,y-1.5,X,y);doc.line(X,y+h,X,y+h+1.5);doc.text(dms(v,'lon'),X,y-2.2,{align:'center'});doc.text(dms(v,'lon'),X,y+h+1.5+fs*0.38,{align:'center'})}
+      const latY=v=>{const n=256*2**jan.z,wy=(1-Math.asinh(Math.tan(v*Math.PI/180))/Math.PI)/2*n;return y+((wy*jan.k+jan.oy)/H)*h};
+      for(let v=Math.ceil(lat0/passo)*passo;v<lat1;v+=passo){const Y=latY(v);doc.setDrawColor(255);doc.setLineDashPattern([0.8,1.6],0);doc.line(x,Y,x+w,Y);doc.setLineDashPattern([],0);
+        doc.setDrawColor(30);doc.line(x-1.5,Y,x,Y);doc.line(x+w,Y,x+w+1.5,Y);doc.text(dms(v,'lat'),x-2.2,Y,{angle:90,align:'center'});doc.text(dms(v,'lat'),x+w+2.2+fs*0.3,Y,{angle:90,align:'center'})}
+      // escala gráfica
+      const latC=(lat0+lat1)/2,mpmm=(lon1-lon0)*111320*Math.cos(latC*Math.PI/180)/w,alvo=w*0.22*mpmm,p10=10**Math.floor(Math.log10(alvo)),m=[1,2,5].map(v=>v*p10).filter(v=>v<=alvo).pop()||p10,L=m/mpmm;
+      const ex=x+w-L-8,ey=y+h-7;doc.setFillColor(255,255,255);doc.rect(ex-4,ey-6,L+8,10.5,'F');
+      for(let i=0;i<4;i++){doc.setFillColor(...(i%2?[255,255,255]:[30,30,30]));doc.rect(ex+i*L/4,ey,L/4,1.6,'F')}doc.setDrawColor(30);doc.rect(ex,ey,L,1.6);
+      doc.setFontSize(fs);doc.text('0',ex,ey-1.2,{align:'center'});doc.text(m>=1000?(m/1000)+' km':m+' m',ex+L,ey-1.2,{align:'center'});doc.text(m>=1000?(m/2000)+'':(m/2)+'',ex+L/2,ey-1.2,{align:'center'});
+      // norte
+      const nx=x+w-9,ny=y+5;doc.setFillColor(255,255,255);doc.circle(nx,ny+5,5.6,'F');doc.setFillColor(30,30,30);doc.triangle(nx,ny,nx-2.6,ny+7.5,nx,ny+6);doc.setFillColor(255,255,255);doc.setDrawColor(30);doc.triangle(nx,ny,nx+2.6,ny+7.5,nx,ny+6,'FD');
+      doc.setFontSize(fs+1);doc.setFont('helvetica','bold');doc.text('N',nx,ny+10.6,{align:'center'});doc.setFont('helvetica','normal');
+    };
+    // ---------- folha 1: carta-imagem do imóvel ----------
+    pag=1;status('stTif','Carta-mapa: montando a carta-imagem do imóvel…');
+    const MX=M+12,MY=M+12,MWi=MW-22,MHi=MH-24;
+    const r1=await quadro(atual,bbExpand(S.uniao,0.12,0.003),MX,MY,MWi,MHi,7.5);grade(r1,MX,MY,MWi,MHi,7.5);
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255);doc.setFillColor(0,0,0);doc.rect(MX+3,MY+3,90,7,'F');doc.text(`${nomeSat(atual)} · ${fdate(atual.data)}`,MX+5,MY+8);
+    selo('CARTA-IMAGEM DO IMÓVEL',`Imóvel rural com alertas de desmatamento e restrições socioambientais sobrepostas.`,y=>{
+      doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(23,35,29);doc.text('Quadro de alertas',SX+4,y);y+=5;
+      doc.setFontSize(8);doc.text('Nº',SX+4,y);doc.text('Fonte',SX+14,y);doc.text('Ano',SX+64,y);doc.text('Área (ha)',PW-M-4,y,{align:'right'});y+=1.5;doc.setDrawColor(150);doc.line(SX+4,y,PW-M-4,y);y+=4;
+      doc.setFont('helvetica','normal');
+      if(!alertas.length){doc.text('Nenhum alerta sobreposto ao imóvel.',SX+4,y);y+=5}
+      alertas.slice(0,14).forEach(a=>{doc.text('A'+a.id,SX+4,y);doc.text(String(a.fonte||'').replace('PRODES ','PRODES ').slice(0,28),SX+14,y);doc.text(String(a.ano||''),SX+64,y);doc.text(fmt(a.ha),PW-M-4,y,{align:'right'});y+=4.4});
+      if(alertas.length>14){doc.text(`… e mais ${alertas.length-14} alerta(s) nas folhas seguintes.`,SX+4,y);y+=4.4}
+      y+=2;doc.setFont('helvetica','bold');doc.text('Imagem de fundo',SX+4,y);doc.setFont('helvetica','normal');doc.text(`${nomeSat(atual)} · ${fdate(atual.data)} · ${$('comp').value==='fc'?'falsa-cor':'cor natural'}`,SX+32,y);
+      return y+6});
+    // ---------- folhas dos alertas ----------
+    const alvos=alertas.length?alertas:[null];
+    for(const a of alvos){
+      doc.addPage('a3','landscape');pag++;
+      status('stTif',`Carta-mapa: ${a?'alerta A'+a.id:'histórico do imóvel'} (${pag}/${total})…`);
+      const g=a?a.geom:S.uniao,bbA=bbExpand(g,a?0.9:0.12,a?0.004:0.003),n=sel.length;
+      const cols=n<=2?n:n<=4?2:n<=6?3:4,rows=Math.ceil(n/cols),gap=9,top=M+12,areaW=MW-14,areaH=MH-16;
+      const cw=Math.min((areaW-(cols-1)*gap)/cols,(areaH-(rows-1)*(gap+5))/rows-5),ox=M+8+(areaW-(cols*cw+(cols-1)*gap))/2;
+      for(const [i,x] of sel.entries()){const X=ox+(i%cols)*(cw+gap),Y=top+Math.floor(i/cols)*(cw+gap+5);
+        const r=await quadro(x.o,bbA,X,Y,cw,cw,5,{alvo:a?a.id:null});grade(r,X,Y,cw,cw,5.2);
+        doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(23,35,29);doc.text(`${x.s.ano} — ${fdate(x.o.data)} · ${nomeSat(x.o)}${x.o.fill&&x.o.fill.length?' (faixas preenchidas)':''}`,X,Y+cw+6.5)}
+      selo(a?`ALERTA A${a.id} — HISTÓRICO`:'HISTÓRICO DO IMÓVEL',a?`${a.fonte||'Alerta'}${a.ano?' · ano '+a.ano:''} · ${fmt(a.ha)} ha sobrepostos ao imóvel${a.data?' · imagem do alerta '+a.data:''}${a.cod?' · cód. '+a.cod:''}`:'Cenas históricas do imóvel (nenhum alerta sobreposto).',y=>{
+        doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(23,35,29);doc.text('Localização no imóvel',SX+4,y);y+=3;
+        const lw=PW-M-SX-8;quadroLoc.push([a,SX+4,y,lw]);return y+lw+4});
+      const [aa,lx,ly,lw]=quadroLoc.pop();const rl=await quadro(atual,bbExpand(S.uniao,0.08,0.002),lx,ly,lw,lw*0.75,3.2,{alvo:aa?aa.id:null});
+      if(aa){const b=turf.bbox(bbaPoly(bbAspecto(bbA,1))),j=rl.jan,p1=[mx(b[0],j.z)*j.k+j.ox,my(b[3],j.z)*j.k+j.oy],p2=[mx(b[2],j.z)*j.k+j.ox,my(b[1],j.z)*j.k+j.oy];
+        doc.setDrawColor(0,170,255);doc.setLineWidth(0.6);doc.rect(lx+p1[0]/rl.W*lw,ly+p1[1]/rl.H*lw*0.75,(p2[0]-p1[0])/rl.W*lw,(p2[1]-p1[1])/rl.H*lw*0.75)}
+    }
+    doc.save(`Carta-mapa_${slug()}.pdf`);status('stTif',`Carta-mapa pronta: ${pag} folha(s) A3.`);
+  }catch(e){console.error(e);status('stTif','Erro ao montar a carta-mapa: '+e.message,true)}
+  $('bCarta').disabled=false;
+});
+const quadroLoc=[];const bbaPoly=b=>turf.bboxPolygon(b);
 
 /* ---------- comparador ---------- */
 function montarComparador(){
