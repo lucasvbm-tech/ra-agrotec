@@ -408,9 +408,11 @@ function waLink(msg){return 'https://wa.me/'+WA_NUM+'?text='+encodeURIComponent(
 function msgLaudo(){const g=S.criterios.length?TXTG[resultadoGeral()]:'';const nc=S.criterios.filter(c=>c.res==='NC').map(c=>c.nome);
   return `Olá! Fiz a consulta no app R.A AgroTec e quero o laudo completo.\nImóvel: ${$('nome').value||'—'}\nCAR: ${$('car').value||'—'}\nMunicípio: ${$('mun').value||'—'}`+(g?`\nResultado: ${g}`:'')+(nc.length?`\nNão conformidades: ${nc.join('; ')}`:'')}
 
-const TEC_HASH='f37f6240ec5ad0580416d1910ccdce5b5816ea70978975272c8d0c26a3cdedcd';
+// códigos de técnico aceitos (só o hash); para tirar o acesso de alguém, apague a linha do código dessa pessoa
+const TEC_HASHES=['f37f6240ec5ad0580416d1910ccdce5b5816ea70978975272c8d0c26a3cdedcd', // técnico 1 (titular)
+  '85a0092fbe63eb2b2afe044b674cf8745107c262953380e4cc8502dcf6558faf']; // técnico 2
 async function sha256(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-let TEC=false;try{TEC=localStorage.getItem('ra_tec')===TEC_HASH}catch(e){}
+let TEC=false;try{TEC=TEC_HASHES.includes(localStorage.getItem('ra_tec'))}catch(e){}
 function aplicarModo(){document.body.classList.toggle('tec',TEC);document.body.classList.toggle('publico',!TEC);
   ['bPdf','bShp','bKml','bPng'].forEach(id=>{const b=document.getElementById(id);if(!b)return;b.classList.toggle('lock',!TEC);const sm=b.querySelector('small');if(sm){if(!sm.dataset.o)sm.dataset.o=sm.textContent;sm.textContent=TEC?sm.dataset.o:'Liberado após pagamento — toque para solicitar no WhatsApp'}});
   if(S.cenas&&S.cenas.length&&typeof redesenharTudo==='function')redesenharTudo();}
@@ -426,7 +428,7 @@ document.addEventListener('keydown',e=>{if(!TEC&&(e.ctrlKey||e.metaKey)&&['p','s
 function abrirTec(){document.getElementById('mTec').classList.add('on');setTimeout(()=>document.getElementById('codTec').focus(),50)}
 document.getElementById('bTecX').addEventListener('click',()=>document.getElementById('mTec').classList.remove('on'));
 document.getElementById('bTecOk').addEventListener('click',async()=>{const c=document.getElementById('codTec').value.trim().toUpperCase();
-  if(await sha256(c)===TEC_HASH){TEC=true;try{localStorage.setItem('ra_tec',TEC_HASH)}catch(e){}document.getElementById('mTec').classList.remove('on');aplicarModo()}
+  const hc=await sha256(c);if(TEC_HASHES.includes(hc)){TEC=true;try{localStorage.setItem('ra_tec',hc)}catch(e){}document.getElementById('mTec').classList.remove('on');aplicarModo()}
   else{document.getElementById('stTec').textContent='Código incorreto.';document.getElementById('stTec').className='status err'}});
 document.getElementById('codTec').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('bTecOk').click()});
 document.getElementById('bSairTec').addEventListener('click',()=>{TEC=false;try{localStorage.removeItem('ra_tec')}catch(e){}aplicarModo()});
